@@ -1,465 +1,198 @@
-# Authentication & Session Management Test Guideline
-ID: TG-TASKFLOW-AUTH-001
-Version: 1.1
-Feature: User Authentication & Session Management
-Type: API + E2E
-Last Updated: 2025-11-05
-Owner: QA Team
+# Test Notes Draft
+Generated: 2025-11-07 09:35:50
+Status: Pending
 
-## 1. Feature Context
-### What We're Testing
-Authentication flow including user login, JWT token management, session lifecycle, token refresh, and logout functionality. Critical security component protecting both API and web dashboard access.
+## Query
+Add Task Assignment Feature to TaskFlow API
 
-### Technical Scope
-- **Components**: Auth Service, Token Manager, Session Store, Auth Middleware
-- **APIs**: 
-  - `POST /api/auth/login` - User login with credentials
-  - `POST /api/auth/refresh` - Refresh expired JWT token
-  - `POST /api/auth/logout` - End user session
-  - `GET /api/auth/me` - Get current user profile
-- **Database**: users table, sessions table (PostgreSQL)
-- **External Services**: None (self-contained auth system)
-- **Protects**: All Task API endpoints (TG-TASKFLOW-API-001), Web Dashboard (TG-TASKFLOW-WEB-001)
+*As a* project manager\
+*I want to* assign tasks to specific team members\
+*So that* I can delegate work and track who is responsible for each task
 
-## 2. Risk Analysis
-### Critical Risks
-- **RISK-001**: Credential leakage in logs or responses → **Test Focus**: Verify passwords never logged or returned
-- **RISK-002**: Token replay attacks → **Test Focus**: Ensure tokens expire and cannot be reused after logout
-- **RISK-003**: Session fixation attacks → **Test Focus**: Regenerate session ID after login
-- **RISK-004**: Weak password acceptance → **Test Focus**: Test password complexity requirements
-- **RISK-005**: Brute force attacks → **Test Focus**: Verify rate limiting on login endpoint
+h3. Acceptance Criteria
 
-### Known Issues & Bugs
-- **BUG-AUTH-501**: Token refresh race condition → **Verify**: Concurrent refresh requests handled correctly
-- **BUG-AUTH-602**: Session not invalidated on logout → **Verify**: Token unusable after logout
+# *Task Assignment*
+#* Users can assign a task to one user from their organization
+#* Only authenticated users can assign tasks
+#* Cannot assign tasks to users outside organization
+#* Can reassign tasks to different users
+#* Can unassign tasks (set to null)
+# *API Changes*
+#* {{POST /api/tasks}} accepts optional {{assigned_to}} field (user_id)
+#* {{PUT /api/tasks/{id}}} can update {{assigned_to}} field
+#* {{GET /api/tasks}} can filter by {{assigned_to=me}} or {{assigned_to={user_id}}}
+#* {{GET /api/tasks/{id}}} includes {{assigned_to}} user info in response
+# *Validation Rules*
+#* {{assigned_to}} must be valid user ID
+#* Assigned user must exist in same organization
+#* Cannot assign deleted/inactive users
+#* Assignment changes logged in audit trail
+# *Authorization*
+#* Only task owner or assigned user can view task details
+#* Only task owner or admin can change assignment
+#* Regular users cannot assign tasks to others without permission
+# *Notifications* (future scope)
+#* User notified when task assigned to them
+#* User notified when task reassigned away from them
 
-## 3. Test Scenarios
+h3. Technical Details
 
-### 3.1 Happy Path Scenarios
-#### TEST-HP-001: Successful Login
-**Component**: Auth Service, Session Store
-**Endpoint**: POST /api/auth/login
-**Feature Tags**: authentication, login, jwt-token, session-management
-**Test Type**: Happy Path
-**Priority**: P0
-**Prerequisites**: User exists in database
-**Affects**: All protected endpoints, web dashboard access
+*Database Changes:*
 
-**Given**: User exists with email "test@example.com" and password "SecurePass123!"
-**When**: POST /api/auth/login with:
-```json
-{
-  "email": "test@example.com",
-  "password": "SecurePass123!"
-}
-```
-**Then**: 
-- Returns 200 OK
-- Response includes JWT access token and refresh token
-- Session created in database
-**Verify**: 
-- Access token is valid JWT format
-- Token expiry set to 15 minutes
-- Refresh token expiry set to 7 days
-- User ID encoded in token payload
+* Add {{assigned_to}} column to {{tasks}} table (nullable, FK to [users.id|http://users.id])
+* Add {{assigned_at}} timestamp column
+* Add index on {{assigned_to}} for filtering performance
 
----
+*API Endpoints Modified:*
 
-#### TEST-HP-002: Access Protected Resource with Token
-**Component**: Auth Middleware, Token Manager
-**Endpoint**: GET /api/auth/me
-**Feature Tags**: authentication, token-validation, protected-resource
-**Test Type**: Happy Path
-**Priority**: P0
-**Prerequisites**: Valid JWT token available
-**Affects**: All API endpoints requiring authentication
+* {{POST /api/tasks}} - accept assigned_to
+* {{PUT /api/tasks/{id}}} - allow updating assigned_to
+* {{GET /api/tasks}} - support assigned_to filters
+* {{GET /api/tasks/{id}}} - include assignee details
 
-**Given**: Valid JWT token
-**When**: GET /api/auth/me with header `Authorization: Bearer <token>`
-**Then**: 
-- Returns 200 OK
-- Response includes user profile (id, email, name)
-**Verify**: 
-- No password field in response
-- Token validated correctly
-- User data accurate
+*Dependencies:*
 
----
+* Requires user data from Auth Service (TG-TASKFLOW-AUTH-001)
+* Affects Web Dashboard task forms (TG-TASKFLOW-WEB-001)
+* Uses existing authorization middleware
 
-#### TEST-HP-003: Refresh Expired Token
-**Component**: Auth Service, Token Manager
-**Endpoint**: POST /api/auth/refresh
-**Feature Tags**: token-refresh, session-management, jwt-rotation
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Access token expired, valid refresh token
-**Affects**: Long-running sessions, mobile app persistence
-**Covers Risk**: RISK-002
+*Security Concerns:*
 
-**Given**: Access token expired, valid refresh token available
-**When**: POST /api/auth/refresh with:
-```json
-{
-  "refresh_token": "<valid_refresh_token>"
-}
-```
-**Then**: 
-- Returns 200 OK
-- New access token issued
-- Refresh token rotated (new one issued)
-**Verify**: 
-- New access token valid for 15 minutes
-- Old refresh token invalidated
-- Session updated with new tokens
+* Must prevent assigning tasks to users in other organizations (data leakage)
+* Authorization checks on assignment changes
+* Cannot bypass access control by assigning to yourself
 
----
+## Scenarios to test for new/changed functionality
+- **Assign Task to User within Organization**
+  - **Given**: Authenticated user with valid JWT token.
+  - **When**: Perform `POST /api/tasks` with payload including valid `assigned_to` user ID from the same organization.
+  - **Then**: 
+    - Returns 201 Created.
+    - Assigned user ID included in the task response.
+    - Check task is correctly persisted in the database with the `assigned_to` field populated.
 
-#### TEST-HP-004: Logout and Invalidate Session
-**Component**: Auth Service, Session Store
-**Endpoint**: POST /api/auth/logout
-**Feature Tags**: logout, session-invalidation, security
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: User logged in with active session
-**Affects**: Token security, session cleanup
-**Covers Risk**: RISK-002
+- **Reassign Task to Different User**
+  - **Given**: Task exists with an assigned user.
+  - **When**: Perform `PUT /api/tasks/{id}` with a different valid `assigned_to` user ID from the same organization.
+  - **Then**: 
+    - Returns 200 OK.
+    - The task's `assigned_to` field is updated in the response and database.
+    - Confirm that assignment change is logged in the audit trail.
 
-**Given**: User logged in with valid token
-**When**: POST /api/auth/logout with token
-**Then**: 
-- Returns 204 No Content
-- Token invalidated
-- Session deleted from database
-**Verify**: 
-- Token cannot be used for subsequent requests
-- Refresh token also invalidated
-- Session record marked as logged_out
+- **Unassign Task**
+  - **Given**: Task is assigned to a user.
+  - **When**: Perform `PUT /api/tasks/{id}` and set `assigned_to` to null.
+  - **Then**: 
+    - Returns 200 OK.
+    - The `assigned_to` field in the task details is null.
+    - Ensure audit trail logs the unassignment.
 
----
+- **Authorization Check for Assignment**
+  - **Given**: User B (not the owner) attempts to assign a task owned by User A.
+  - **When**: Perform `PUT /api/tasks/{id}` to change the `assigned_to` user.
+  - **Then**: 
+    - Returns 403 Forbidden.
+    - Confirm no task data returned, ensuring proper enforcement of authorization rules.
 
-### 3.2 Error Handling Scenarios
-#### TEST-ERR-001: Login with Invalid Password
-**Component**: Auth Service, Validation Layer
-**Endpoint**: POST /api/auth/login
-**Feature Tags**: error-handling, security, brute-force-protection
-**Test Type**: Negative Test
-**Priority**: P1
-**Prerequisites**: User exists, wrong password provided
-**Affects**: Security posture, user enumeration prevention
-**Covers Risk**: RISK-005
+- **Filter Tasks by Assigned User**
+  - **Given**: Multiple tasks with different assigned users exist.
+  - **When**: Perform `GET /api/tasks?assigned_to={user_id}` for a specific user.
+  - **Then**: 
+    - Returns 200 OK.
+    - Only tasks assigned to the specified user are returned in the response.
 
-**Given**: User exists but wrong password provided
-**When**: POST /api/auth/login with incorrect password
-**Then**: 
-- Returns 401 Unauthorized
-- Error message: "Invalid email or password"
-**Verify**: 
-- Generic error (doesn't specify which field wrong)
-- Failed attempt logged
-- Rate limit counter incremented
-- No timing attack vulnerability
+- **Validate User Assignment** 
+  - **Given**: Authenticated user.
+  - **When**: Perform `POST /api/tasks` with an invalid `assigned_to` user ID (either non-existent or a user from another organization).
+  - **Then**: 
+    - Returns 400 Bad Request.
+    - Ensure the error message appropriately describes the validation failure (e.g., "assigned_to must be a valid user from the same organization").
 
----
+- **Task Details Include Assigned User Info**
+  - **Given**: Task exists with an assigned user.
+  - **When**: Perform `GET /api/tasks/{id}`.
+  - **Then**: 
+    - Returns 200 OK.
+    - Response body includes the `assigned_to` user info as expected.
 
-#### TEST-ERR-002: Login with Non-Existent User
-**Component**: Auth Service
-**Endpoint**: POST /api/auth/login
-**Feature Tags**: error-handling, security, user-enumeration
-**Test Type**: Security Test
-**Priority**: P0
-**Prerequisites**: Email not in system
-**Affects**: User enumeration prevention
-**Covers Risk**: RISK-001
+## Things to consider
+### Testing Considerations for Task Assignment Feature
 
-**Given**: Email doesn't exist in system
-**When**: POST /api/auth/login with non-existent email
-**Then**: 
-- Returns 401 Unauthorized
-- Error message: "Invalid email or password"
-**Verify**: 
-- Same error as wrong password (no user enumeration)
-- Response time similar to valid user attempt
+- **Edge Cases and Boundary Conditions:**
+  - Test assigning a task to a user with the maximum allowed user ID length.
+  - Verify behavior when assigning tasks with a `null` value for `assigned_to`.
+  - Check system response when attempting to assign a task to users with invalid or malformed user IDs.
+  - Assess performance with a high number of tasks being assigned/reassigned in quick succession (stress test).
 
----
+- **Data Validation Requirements:**
+  - Ensure that the `assigned_to` field accepts only valid user IDs (existing and active users within the organization).
+  - Validate that attempting to assign a task to a user outside the authenticated user's organization returns an appropriate error message.
+  - Verify that task assignment is prevented for deleted or inactive users, and an error is returned.
+  - Validate the presence of an audit trail entry when tasks are assigned, reassigned, or unassigned, checking for correct logging of user actions.
 
-#### TEST-ERR-003: Access Protected Resource Without Token
-**Component**: Auth Middleware
-**Endpoint**: GET /api/auth/me
-**Feature Tags**: authorization, error-handling, token-required
-**Test Type**: Negative Test
-**Priority**: P0
-**Prerequisites**: No auth token provided
-**Affects**: API security enforcement
+- **Error Handling Scenarios:**
+  - Verify system behavior when an unauthenticated user attempts to assign a task (should return 401 Unauthorized).
+  - Check for proper error messages when trying to reassign a task without permission (access control enforcement).
+  - Test the response when trying to assign tasks concurrently in a multi-user environment to ensure there are no race conditions or data integrity issues (conflict scenarios).
 
-**Given**: No authorization header provided
-**When**: GET /api/auth/me without token
-**Then**: 
-- Returns 401 Unauthorized
-- Error message: "Authentication required"
-**Verify**: 
-- Clear error message
-- No resource data leaked
+- **Performance Considerations:**
+  - Measure the API response times for task assignment operations to ensure they meet specified performance metrics.
+  - Evaluate the performance implications of filtering tasks by the `assigned_to` field with a large dataset to ensure that the added index on `assigned_to` improves query performance.
+
+- **Security Implications:**
+  - Test for data leakage by attempting to assign tasks to users without appropriate permissions and ensure access control is enforced.
+  - Verify that sensitive user information is not exposed through task details accessible via the GET endpoints.
+  - Conduct SQL injection tests on the `assigned_to` field during task assignment API calls to ensure input sanitization is effective.
+
+- **Integration and Dependency Concerns:**
+  - Ensure integration with the Auth Service is functioning correctly; test that authenticated user IDs correctly populate the assignment options.
+  - Confirm that changes in task assignment reflect appropriately in the Web Dashboard in real time, including verification of the UI update mechanisms.
+  - Test the impact of the API changes on related components in the Web Dashboard, ensuring no regressions occur due to the addition of the task assignment functionality.
+
+By addressing these considerations, testing can comprehensively cover functional, non-functional, and security aspects of the new Task Assignment feature implemented in the TaskFlow API.
+
+## Regression areas that could be affected
+### Regression Areas for Task Assignment Feature in TaskFlow API
+
+- **Task Creation Flow:**  
+  - **POST /api/tasks**: Verify task creation with and without the `assigned_to` field. Ensure that the creation process completes without errors and that the task can be viewed with the correct assignment in subsequent GET requests.
+
+- **Task Update Flow:**  
+  - **PUT /api/tasks/{id}**: Ensure task updates still function correctly. Test updates to both the `assigned_to` field and any other fields (like `status`, `priority`, etc.), confirming that only the intended fields change and proper auditing occurs.
+
+- **Task Retrieval and Filtering:**  
+  - **GET /api/tasks**: Validate the `assigned_to` filtering feature works without issues. Test retrieval of tasks assigned to specific users or for the current user (`assigned_to=me`) remains accurate.
+  - **GET /api/tasks/{id}**: Check that task details correctly include the `assigned_to` field information, and ensure user permissions are respected.
+
+- **Concurrent Updates:**  
+  - **Race Conditions**: Test concurrency scenarios where two users may attempt to update the same task's assignment. Validate the response for handling conflicts properly (should return 409 Conflict).
+
+- **Authorization Paths:**  
+  - Ensure that users without permission cannot assign tasks to others. Validate the behavior of the system when a user tries to assign tasks improperly (e.g., unauthorized users trying to use the `PUT` endpoint to change assignments).
+
+- **Error Handling Scenarios:**
+  - Test error responses when attempting to assign tasks with invalid `user_id`, to users outside the organization, or to inactive/deleted users (related to the validation rules specified).
+
+- **Notification System (Future Scope):**  
+  - While not implemented, verify placeholders or indications that notifications should happen upon assignment and reassignment events, ensuring this integration is prepared for future development.
+
+- **Integration with Web Dashboard:**
+  - **TG-TASKFLOW-WEB-001** relates to the visual representation of tasks, so confirm that task assignment visibility (in the web UI) correctly reflects backend changes, especially in task lists and detail views.
+
+- **Deleting Tasks:**  
+  - Verify that task deletion (`DELETE /api/tasks/{id}`) functionality still works. Confirm that task removal from lists updates immediately after deletion in the web UI to reflect no erroneous data remaining.
+
+- **Empty State Handling:**  
+  - Ensure that the system handles situations where no tasks exist due to unassignment correctly and that task assignments do not disrupt the expected empty state UI behavior.
+
+- **Performance and Security Checks:**  
+  - Validate that new changes do not introduce performance degradation or security flaws related to task assignment, particularly around data leakage or unauthorized data access.
+
+This list encompasses areas that share functionality or intersect with the changes from adding the task assignment feature, ensuring comprehensive regression testing coverage.
+
+## Citations
+[TG-TASKFLOW-API-001#technical-scope], [TG-TASKFLOW-API-001#31-happy-path-scenarios], [TG-TASKFLOW-API-001#32-error-handling-scenarios], [TG-TASKFLOW-API-001#what-were-testing], [TG-TASKFLOW-API-001#33-edge-cases], [TG-TASKFLOW-WEB-001#31-happy-path-scenarios], [TG-TASKFLOW-WEB-001#data-requirements], [TG-TASKFLOW-API-001#34-integration-scenarios], [TG-TASKFLOW-AUTH-001#technical-scope], [TG-TASKFLOW-WEB-001#34-integration-scenarios], [TG-TASKFLOW-AUTH-001#protects-these-services], [TG-TASKFLOW-WEB-001#35-regression-tests]
 
 ---
-
-#### TEST-ERR-004: Access with Expired Token
-**Component**: Auth Middleware, Token Manager
-**Endpoint**: GET /api/auth/me
-**Feature Tags**: token-expiry, error-handling, session-timeout
-**Test Type**: Negative Test
-**Priority**: P1
-**Prerequisites**: Token expired (>15 minutes old)
-**Affects**: Session timeout behavior
-
-**Given**: JWT access token expired (>15 minutes old)
-**When**: GET /api/auth/me with expired token
-**Then**: 
-- Returns 401 Unauthorized
-- Error message: "Token expired"
-**Verify**: 
-- Suggests using refresh token
-- Token expiry correctly validated
-
----
-
-#### TEST-ERR-005: Brute Force Login Attempt
-**Component**: Auth Service, Rate Limiter
-**Endpoint**: POST /api/auth/login
-**Feature Tags**: security, rate-limiting, brute-force-protection
-**Test Type**: Security Test
-**Priority**: P0
-**Prerequisites**: Rate limiting configured (5 attempts / 15 min)
-**Affects**: Account security, system stability
-**Covers Risk**: RISK-005
-
-**Given**: Rate limit set to 5 failed attempts per 15 minutes
-**When**: POST /api/auth/login with wrong password 6 times
-**Then**: 
-- First 5 attempts: 401 Unauthorized
-- 6th attempt: 429 Too Many Requests
-- Error: "Too many login attempts. Try again in X minutes"
-**Verify**: 
-- Rate limit per IP address
-- Lockout duration correct
-- Successful login resets counter
-
----
-
-### 3.3 Edge Cases
-#### TEST-EDGE-001: Weak Password Rejected
-**Component**: Auth Service, Password Validator
-**Endpoint**: POST /api/auth/register
-**Feature Tags**: validation, password-complexity, security
-**Test Type**: Boundary Test
-**Priority**: P1
-**Prerequisites**: None
-**Affects**: Account creation, password security
-**Covers Risk**: RISK-004
-
-**Given**: User registration with weak password "12345"
-**When**: POST /api/auth/register (or update password)
-**Then**: 
-- Returns 400 Bad Request
-- Error: "Password must be at least 8 characters with 1 uppercase, 1 lowercase, 1 number, 1 special character"
-**Verify**: 
-- Password complexity enforced
-- Clear requirements communicated
-
----
-
-#### TEST-EDGE-002: Concurrent Token Refresh
-**Component**: Token Manager, Session Store
-**Endpoint**: POST /api/auth/refresh
-**Feature Tags**: concurrency, race-condition, token-refresh
-**Test Type**: Concurrency Test
-**Priority**: P1
-**Prerequisites**: Same user, multiple devices
-**Affects**: Multi-device session management
-**Covers Bug**: BUG-AUTH-501
-
-**Given**: Two devices refresh token simultaneously
-**When**: Both send refresh requests within 100ms
-**Then**: 
-- First request succeeds (new tokens issued)
-- Second request fails gracefully (401 or 409)
-- User not logged out unexpectedly
-**Verify**: 
-- Race condition handled
-- User can re-authenticate if needed
-
----
-
-#### TEST-EDGE-003: Long Session Duration
-**Component**: Token Manager
-**Endpoint**: POST /api/auth/refresh
-**Feature Tags**: session-management, token-expiry, edge-case
-**Test Type**: Boundary Test
-**Priority**: P2
-**Prerequisites**: Session idle for extended period
-**Affects**: Long-running sessions
-
-**Given**: User logged in, session idle for 6 days 23 hours
-**When**: Use refresh token just before 7-day expiry
-**Then**: 
-- Refresh succeeds
-- New 7-day refresh token issued
-- Session extended
-**Verify**: 
-- Expiry calculated correctly
-- No sudden session termination
-
----
-
-#### TEST-EDGE-004: Token with Tampered Signature
-**Component**: Token Manager, JWT Validator
-**Endpoint**: GET /api/auth/me
-**Feature Tags**: security, token-tampering, jwt-validation
-**Test Type**: Security Test
-**Priority**: P0
-**Prerequisites**: JWT with modified payload
-**Affects**: Token security, data integrity
-
-**Given**: Valid JWT token with modified payload
-**When**: GET /api/auth/me with tampered token
-**Then**: 
-- Returns 401 Unauthorized
-- Error: "Invalid token signature"
-**Verify**: 
-- Signature validation works
-- Tampering detected
-- Security event logged
-
----
-
-### 3.4 Integration Scenarios
-#### TEST-INT-001: End-to-End Login Flow (Web + API)
-**Component**: Auth Service, Web Login Page, Token Storage
-**Page**: /login
-**Feature Tags**: integration, e2e, login-flow, web-authentication
-**Test Type**: Integration Test
-**Priority**: P1
-**Prerequisites**: Web app and API both running
-**Consumes**: TG-TASKFLOW-WEB-001 login page
-
-**Given**: User on web login page (/login)
-**When**: Enter credentials → Click "Login" button
-**Then**: 
-- API login request succeeds
-- Tokens stored in browser (httpOnly cookie or localStorage)
-- Redirected to /dashboard
-- Subsequent API calls include auth token
-**Verify**: 
-- Token securely stored
-- Auth header automatically added
-- Dashboard loads user-specific data
-
----
-
-#### TEST-INT-002: Token Expiry During Active Session
-**Component**: Token Manager, Web Dashboard, Auto-Refresh Logic
-**Page**: /dashboard
-**Feature Tags**: integration, token-refresh, session-continuity
-**Test Type**: Integration Test
-**Priority**: P1
-**Prerequisites**: Active user session, token about to expire
-**Consumes**: TG-TASKFLOW-WEB-001 dashboard
-
-**Given**: User actively using dashboard, token expires
-**When**: Next API call made with expired token
-**Then**: 
-- Client detects 401 error
-- Automatically refreshes token
-- Original request retried with new token
-- User uninterrupted
-**Verify**: 
-- Refresh happens transparently
-- No data loss
-- Single refresh attempt (not infinite loop)
-
----
-
-#### TEST-INT-003: Logout Across Multiple Tabs
-**Component**: Auth Service, Web Dashboard, Cross-Tab Communication
-**Page**: Multiple browser tabs
-**Feature Tags**: integration, logout, multi-tab, session-sync
-**Test Type**: Integration Test
-**Priority**: P2
-**Prerequisites**: User logged in with multiple tabs
-**Consumes**: TG-TASKFLOW-WEB-001
-
-**Given**: User logged in with 3 browser tabs open
-**When**: Logout clicked in one tab
-**Then**: 
-- All tabs detect logout
-- All tabs redirect to login page
-- Token invalidated globally
-**Verify**: 
-- Broadcast channel or storage event used
-- No tab retains access
-
----
-
-### 3.5 Regression Tests
-#### TEST-REG-001: Token Usable After Logout
-**Component**: Auth Service, Token Blacklist
-**Endpoint**: POST /api/auth/logout, GET /api/auth/me
-**Feature Tags**: regression, logout, token-invalidation
-**Test Type**: Regression Test
-**Priority**: P0
-**Prerequisites**: User logged out
-**Affects**: Token security
-**Previous Bug**: BUG-AUTH-602
-
-**Context**: Previously tokens worked after logout
-**Given**: User logged out successfully
-**When**: Attempt to use old access token
-**Then**: Returns 401 Unauthorized
-
----
-
-## 4. Dependencies & Integration Points
-### External Dependencies
-- **PostgreSQL**: Users and sessions tables required
-- **Redis** (optional): For rate limiting and token blacklist
-- **Email Service** (future): For password reset
-
-### Protects These Services
-- **Task API**: TG-TASKFLOW-API-001 (all endpoints require authentication)
-- **Web Dashboard**: TG-TASKFLOW-WEB-001 (login/logout, token management)
-
-### JWT Configuration
-- **Algorithm**: HS256 (or RS256 for asymmetric)
-- **Access Token TTL**: 15 minutes
-- **Refresh Token TTL**: 7 days
-- **Issuer**: "taskflow-auth"
-- **Secret**: Must be strong, environment-specific
-
-### Security Headers
-- `Authorization: Bearer <token>` - Required for protected endpoints
-- Response includes: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
-
-### Data Requirements
-- **Test Users**: 
-  - Active user: test@example.com / SecurePass123!
-  - Locked user: locked@example.com (for rate limit testing)
-  - Admin user: admin@example.com (for role-based testing)
-
-## 5. Key Verification Points
-### Always Verify
-- [ ] Passwords never logged, returned, or exposed
-- [ ] JWT signatures validated on every request
-- [ ] Tokens expire at correct intervals
-- [ ] Rate limiting prevents brute force
-- [ ] Sessions invalidated on logout
-- [ ] Token refresh rotates refresh tokens
-- [ ] HTTPS enforced in production
-
-### Common Failure Points
-- Password hashing algorithm weak (use bcrypt/argon2)
-- JWT secret hard-coded or weak
-- Token expiry not checked correctly
-- Race conditions in token refresh
-- Session fixation vulnerabilities
-- CORS misconfiguration exposing tokens
-- Tokens stored in localStorage (XSS risk)
-- Rate limiting bypassed via IP spoofing
+*Generated by AI QA Assistant using gpt-4o-mini (temp: 0.1)*
+*Based on 12 retrieved document chunks*
