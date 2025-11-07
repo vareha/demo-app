@@ -1,10 +1,10 @@
 # Web Dashboard Task Management Test Guideline
-ID: TG-TASKFLOW-WEB-001
-Version: 1.1
-Feature: TaskFlow Web Dashboard UI
-Type: E2E
-Last Updated: 2025-11-05
-Owner: QA Team
+ID: TG-TASKFLOW-WEB-001  
+Version: 1.2  
+Feature: TaskFlow Web Dashboard UI  
+Type: E2E  
+Last Updated: 2025-11-07  
+Owner: QA Team  
 
 ## 1. Feature Context
 ### What We're Testing
@@ -27,6 +27,7 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 - **RISK-002**: State desync between UI and server → **Test Focus**: Test optimistic updates and rollback
 - **RISK-003**: Form validation bypassed → **Test Focus**: Client-side validation matches server rules
 - **RISK-004**: Memory leak from unclosed WebSocket → **Test Focus**: Test connection cleanup on navigation
+- **RISK-005**: Unauthorized task assignment leading to data leakage → **Test Focus**: Ensure proper authorization checks for task assignments
 
 ### Known Issues & Bugs
 - **BUG-UI-301**: Task list doesn't refresh after delete → **Verify**: List updates immediately after deletion
@@ -36,397 +37,437 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 ### 3.1 Happy Path Scenarios
 #### TEST-HP-001: View Task Dashboard
-**Component**: React Dashboard, Task List Component
-**Page**: /dashboard
-**Feature Tags**: dashboard, task-list, ui-navigation
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Authenticated user with existing tasks
-**Consumes API**: GET /api/tasks (TG-TASKFLOW-API-001)
+**Component**: React Dashboard, Task List Component  
+**Page**: /dashboard  
+**Feature Tags**: dashboard, task-list, ui-navigation  
+**Test Type**: Happy Path  
+**Priority**: P1  
+**Prerequisites**: Authenticated user with existing tasks  
+**Consumes API**: GET /api/tasks (TG-TASKFLOW-API-001)  
 
-**Given**: User logged in and has 5 tasks
-**When**: Navigate to /dashboard
+**Given**: User logged in and has 5 tasks  
+**When**: Navigate to /dashboard  
 **Then**: 
-- All 5 tasks displayed in list
-- Tasks sorted by creation date (newest first)
-- Each task shows title, status, priority
+- All 5 tasks displayed in list  
+- Tasks sorted by creation date (newest first)  
+- Each task shows title, status, priority  
 **Verify**: 
-- Loading spinner shows while fetching
-- Empty state not shown
-- Task cards clickable
+- Loading spinner shows while fetching  
+- Empty state not shown  
+- Task cards clickable  
 
 ---
 
 #### TEST-HP-002: Create New Task via Form
-**Component**: Task Form Component
-**Page**: /task/new
-**Feature Tags**: task-creation, form-submission, ui-crud
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Authenticated user
-**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)
+**Component**: Task Form Component  
+**Page**: /task/new  
+**Feature Tags**: task-creation, form-submission, ui-crud  
+**Test Type**: Happy Path  
+**Priority**: P1  
+**Prerequisites**: Authenticated user  
+**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)  
 
-**Given**: User on /task/new page
+**Given**: User on /task/new page  
 **When**: Fill form with:
-- Title: "Design database schema"
-- Description: "Create ERD for new features"
-- Status: "TODO"
-- Priority: "HIGH"
-- Click "Create Task" button
+- Title: "Design database schema"  
+- Description: "Create ERD for new features"  
+- Status: "TODO"  
+- Priority: "HIGH"  
+- Click "Create Task" button  
 **Then**: 
-- Task created successfully
-- Redirected to /dashboard
-- New task visible in list
-- Success notification shown
+- Task created successfully  
+- Redirected to /dashboard  
+- New task visible in list  
+- Success notification shown  
 **Verify**: 
-- Form fields cleared after submit
-- API called with correct payload
-- Task appears at top of list
+- Form fields cleared after submit  
+- API called with correct payload  
+- Task appears at top of list  
 
 ---
 
 #### TEST-HP-003: View Task Details
-**Component**: Task Detail Component
-**Page**: /task/{id}
-**Feature Tags**: task-detail, ui-navigation
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task exists in database
-**Consumes API**: GET /api/tasks/{id} (TG-TASKFLOW-API-001)
+**Component**: Task Detail Component  
+**Page**: /task/{id}  
+**Feature Tags**: task-detail, ui-navigation  
+**Test Type**: Happy Path  
+**Priority**: P1  
+**Prerequisites**: Task exists in database  
+**Consumes API**: GET /api/tasks/{id} (TG-TASKFLOW-API-001)  
 
-**Given**: Task with ID "task123" exists
-**When**: Click on task card in dashboard
+**Given**: Task with ID "task123" exists  
+**When**: Click on task card in dashboard  
 **Then**: 
-- Navigated to /task/task123
-- All task details displayed
-- Action buttons visible (Edit, Delete)
+- Navigated to /task/task123  
+- All task details displayed  
+- Action buttons visible (Edit, Delete)  
 **Verify**: 
-- Title, description, status, priority, due date all shown
-- Created/updated timestamps formatted correctly
-- Back button returns to dashboard
+- Title, description, status, priority, due date all shown  
+- Created/updated timestamps formatted correctly  
+- Back button returns to dashboard  
 
 ---
 
 #### TEST-HP-004: Edit Task Details
-**Component**: Task Form Component
-**Page**: /task/{id}/edit
-**Feature Tags**: task-update, form-submission, optimistic-ui
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task exists, user has edit permission
-**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
+**Component**: Task Form Component  
+**Page**: /task/{id}/edit  
+**Feature Tags**: task-update, form-submission, optimistic-ui  
+**Test Type**: Happy Path  
+**Priority**: P1  
+**Prerequisites**: Task exists, user has edit permission  
+**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)  
 
-**Given**: On task detail page for "task123"
-**When**: Click "Edit" → Update status to "IN_PROGRESS" → Click "Save"
+**Given**: On task detail page for "task123"  
+**When**: Click "Edit" → Update status to "IN_PROGRESS" → Click "Save"  
 **Then**: 
-- Task updated successfully
-- Returned to detail view
-- Status badge shows "IN_PROGRESS"
+- Task updated successfully  
+- Returned to detail view  
+- Status badge shows "IN_PROGRESS"  
 **Verify**: 
-- Optimistic UI update (immediate feedback)
-- API call completes successfully
-- Other fields unchanged
+- Optimistic UI update (immediate feedback)  
+- API call completes successfully  
+- Other fields unchanged  
 
 ---
 
 #### TEST-HP-005: Delete Task
-**Component**: Task Detail Component, Confirmation Modal
-**Page**: /task/{id}
-**Feature Tags**: task-deletion, ui-crud, modal-interaction
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task exists, user has delete permission
-**Consumes API**: DELETE /api/tasks/{id} (TG-TASKFLOW-API-001)
-**Covers Risk**: RISK-002
+**Component**: Task Detail Component, Confirmation Modal  
+**Page**: /task/{id}  
+**Feature Tags**: task-deletion, ui-crud, modal-interaction  
+**Test Type**: Happy Path  
+**Priority**: P1  
+**Prerequisites**: Task exists, user has delete permission  
+**Consumes API**: DELETE /api/tasks/{id} (TG-TASKFLOW-API-001)  
+**Covers Risk**: RISK-002  
 
-**Given**: On task detail page for "task456"
-**When**: Click "Delete" → Confirm in modal
+**Given**: On task detail page for "task456"  
+**When**: Click "Delete" → Confirm in modal  
 **Then**: 
-- Task deleted
-- Redirected to dashboard
-- Task removed from list
+- Task deleted  
+- Redirected to dashboard  
+- Task removed from list  
 **Verify**: 
-- Confirmation modal shows warning
-- Cancel button aborts deletion
-- Success message displayed
+- Confirmation modal shows warning  
+- Cancel button aborts deletion  
+- Success message displayed  
 
 ---
 
 #### TEST-HP-006: Real-Time Task Update
-**Component**: WebSocket Client, Task List Component
-**Page**: /dashboard
-**Feature Tags**: real-time, websocket, live-updates
-**Test Type**: Happy Path
-**Priority**: P2
-**Prerequisites**: WebSocket connection active, multiple users
-**Affects**: Real-time collaboration experience
+**Component**: WebSocket Client, Task List Component  
+**Page**: /dashboard  
+**Feature Tags**: real-time, websocket, live-updates  
+**Test Type**: Happy Path  
+**Priority**: P2  
+**Prerequisites**: WebSocket connection active, multiple users  
+**Affects**: Real-time collaboration experience  
 
-**Given**: Dashboard open, WebSocket connected
-**When**: Another user updates task status
+**Given**: Dashboard open, WebSocket connected  
+**When**: Another user updates task status  
 **Then**: 
-- Task status updates in real-time without refresh
-- Update animation plays
+- Task status updates in real-time without refresh  
+- Update animation plays  
 **Verify**: 
-- WebSocket message received
-- UI updates within 500ms
-- No page flicker
+- WebSocket message received  
+- UI updates within 500ms  
+- No page flicker  
+
+---
+
+#### TEST-HP-007: Assign Task to User
+**Component**: Task Form Component  
+**Page**: /task/{id}/edit  
+**Feature Tags**: task-assignment, ui-interaction, permissions  
+**Test Type**: Happy Path  
+**Priority**: P1  
+**Prerequisites**: Task exists, user has edit permission, users available in organization  
+**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)  
+
+**Given**: On task edit page for "task123"  
+**When**: Select user "user456" from the assign dropdown → Click "Save"  
+**Then**: 
+- Task assigned to "user456" successfully  
+- Task details updated to show assigned user  
+**Verify**: 
+- Assigned user ID is correctly updated in the task details  
+- Audit trail logs the assignment change  
+
+---
+
+#### TEST-HP-008: Unassign Task
+**Component**: Task Form Component  
+**Page**: /task/{id}/edit  
+**Feature Tags**: task-unassignment, ui-interaction, permissions  
+**Test Type**: Happy Path  
+**Priority**: P1  
+**Prerequisites**: Task exists, user has edit permission, task assigned to a user  
+**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)  
+
+**Given**: On task edit page for "task123"  
+**When**: Select “Unassign” option from the assign dropdown → Click "Save"  
+**Then**: 
+- Task unassigned successfully  
+- Task details show assigned user as null  
+**Verify**: 
+- Assigned user ID is null in the task details  
+- Audit trail logs the unassignment change  
 
 ---
 
 ### 3.2 Error Handling Scenarios
 #### TEST-ERR-001: Create Task with Empty Title
-**Component**: Task Form Component, Client Validation
-**Page**: /task/new
-**Feature Tags**: validation, error-handling, form-validation
-**Test Type**: Negative Test
-**Priority**: P1
-**Prerequisites**: None
-**Covers Risk**: RISK-003
+**Component**: Task Form Component, Client Validation  
+**Page**: /task/new  
+**Feature Tags**: validation, error-handling, form-validation  
+**Test Type**: Negative Test  
+**Priority**: P1  
+**Prerequisites**: None  
+**Covers Risk**: RISK-003  
 
-**Given**: On task creation form
-**When**: Leave title empty → Click "Create Task"
+**Given**: On task creation form  
+**When**: Leave title empty → Click "Create Task"  
 **Then**: 
-- Form submission blocked
-- Error message under title field: "Title is required"
-- Submit button disabled until valid
+- Form submission blocked  
+- Error message under title field: "Title is required"  
+- Submit button disabled until valid  
 **Verify**: 
-- No API call made
-- Form remains on page
-- Other fields retain values
+- No API call made  
+- Form remains on page  
+- Other fields retain values  
 
 ---
 
 #### TEST-ERR-002: Network Error During Create
-**Component**: Task Form Component, Error Handling
-**Page**: /task/new
-**Feature Tags**: error-handling, network-error, retry-logic
-**Test Type**: Negative Test
-**Priority**: P2
-**Prerequisites**: Simulated network failure
-**Covers Risk**: RISK-002
+**Component**: Task Form Component, Error Handling  
+**Page**: /task/new  
+**Feature Tags**: error-handling, network-error, retry-logic  
+**Test Type**: Negative Test  
+**Priority**: P2  
+**Prerequisites**: Simulated network failure  
+**Covers Risk**: RISK-002  
 
-**Given**: On task creation form, network offline
-**When**: Fill valid form → Click "Create Task"
+**Given**: On task creation form, network offline  
+**When**: Fill valid form → Click "Create Task"  
 **Then**: 
-- Error notification: "Unable to create task. Check your connection."
-- Form remains populated
-- Retry button available
+- Error notification: "Unable to create task. Check your connection."  
+- Form remains populated  
+- Retry button available  
 **Verify**: 
-- User data not lost
-- Can retry when connection restored
-- Error logged to console
+- User data not lost  
+- Can retry when connection restored  
+- Error logged to console  
 
 ---
 
 #### TEST-ERR-003: Task Not Found
-**Component**: Task Detail Component, Error Page
-**Page**: /task/{id}
-**Feature Tags**: error-handling, 404-error
-**Test Type**: Negative Test
-**Priority**: P2
-**Prerequisites**: Task ID does not exist
-**Consumes API**: GET /api/tasks/{id} (TG-TASKFLOW-API-001)
+**Component**: Task Detail Component, Error Page  
+**Page**: /task/{id}  
+**Feature Tags**: error-handling, 404-error  
+**Test Type**: Negative Test  
+**Priority**: P2  
+**Prerequisites**: Task ID does not exist  
+**Consumes API**: GET /api/tasks/{id} (TG-TASKFLOW-API-001)  
 
-**Given**: Task ID "nonexistent" does not exist
-**When**: Navigate to /task/nonexistent
+**Given**: Task ID "nonexistent" does not exist  
+**When**: Navigate to /task/nonexistent  
 **Then**: 
-- 404 error page displayed
-- Message: "Task not found"
-- Link to return to dashboard
+- 404 error page displayed  
+- Message: "Task not found"  
+- Link to return to dashboard  
 **Verify**: 
-- No JavaScript errors
-- Page renders correctly
+- No JavaScript errors  
+- Page renders correctly  
 
 ---
 
 #### TEST-ERR-004: XSS Attempt in Task Title
-**Component**: Task Form Component, Task Display
-**Page**: /task/new, /dashboard
-**Feature Tags**: security, xss-prevention, input-sanitization
-**Test Type**: Security Test
-**Priority**: P0
-**Prerequisites**: None
-**Covers Risk**: RISK-001
+**Component**: Task Form Component, Task Display  
+**Page**: /task/new, /dashboard  
+**Feature Tags**: security, xss-prevention, input-sanitization  
+**Test Type**: Security Test  
+**Priority**: P0  
+**Prerequisites**: None  
+**Covers Risk**: RISK-001  
 
-**Given**: On task creation form
-**When**: Enter title with script tag: `<script>alert('XSS')</script>`
+**Given**: On task creation form  
+**When**: Enter title with script tag: `<script>alert('XSS')</script>`  
 **Then**: 
-- Task created (title accepted)
-- When viewed, script NOT executed
-- Script tag shown as plain text
+- Task created (title accepted)  
+- When viewed, script NOT executed  
+- Script tag shown as plain text  
 **Verify**: 
-- HTML properly escaped in display
-- No alert popup
-- DevTools shows escaped HTML
+- HTML properly escaped in display  
+- No alert popup  
+- DevTools shows escaped HTML  
 
 ---
 
 ### 3.3 Edge Cases
 #### TEST-EDGE-001: Very Long Task Description
-**Component**: Task Form Component
-**Page**: /task/new
-**Feature Tags**: edge-case, text-input, ui-layout
-**Test Type**: Boundary Test
-**Priority**: P3
-**Prerequisites**: None
+**Component**: Task Form Component  
+**Page**: /task/new  
+**Feature Tags**: edge-case, text-input, ui-layout  
+**Test Type**: Boundary Test  
+**Priority**: P3  
+**Prerequisites**: None  
 
-**Given**: On task creation form
-**When**: Enter 5000-character description
+**Given**: On task creation form  
+**When**: Enter 5000-character description  
 **Then**: 
-- Form accepts input
-- Textarea expands appropriately
-- Full description saved
+- Form accepts input  
+- Textarea expands appropriately  
+- Full description saved  
 **Verify**: 
-- No UI layout breaking
-- Scroll appears in textarea
-- Character count shown (if applicable)
+- No UI layout breaking  
+- Scroll appears in textarea  
+- Character count shown (if applicable)  
 
 ---
 
 #### TEST-EDGE-002: Rapid Task Status Changes
-**Component**: Task Detail Component, Optimistic UI
-**Page**: /task/{id}/edit
-**Feature Tags**: edge-case, concurrency, optimistic-ui
-**Test Type**: Stress Test
-**Priority**: P2
-**Prerequisites**: Task exists
-**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
-**Covers Risk**: RISK-002
+**Component**: Task Detail Component, Optimistic UI  
+**Page**: /task/{id}/edit  
+**Feature Tags**: edge-case, concurrency, optimistic-ui  
+**Test Type**: Stress Test  
+**Priority**: P2  
+**Prerequisites**: Task exists  
+**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)  
+**Covers Risk**: RISK-002  
 
-**Given**: On task detail page
-**When**: Change status 5 times rapidly (toggle)
+**Given**: On task detail page  
+**When**: Change status 5 times rapidly (toggle)  
 **Then**: 
-- All changes queued and processed
-- Final state correct
-- No race conditions
+- All changes queued and processed  
+- Final state correct  
+- No race conditions  
 **Verify**: 
-- Optimistic UI handles rapid changes
-- Server state matches final UI state
+- Optimistic UI handles rapid changes  
+- Server state matches final UI state  
 
 ---
 
 #### TEST-EDGE-003: Task List with 100+ Tasks
-**Component**: Task List Component, Pagination
-**Page**: /dashboard
-**Feature Tags**: performance, pagination, virtual-scrolling
-**Test Type**: Performance Test
-**Priority**: P2
-**Prerequisites**: User with 150+ tasks
-**Consumes API**: GET /api/tasks (TG-TASKFLOW-API-001)
+**Component**: Task List Component, Pagination  
+**Page**: /dashboard  
+**Feature Tags**: performance, pagination, virtual-scrolling  
+**Test Type**: Performance Test  
+**Priority**: P2  
+**Prerequisites**: User with 150+ tasks  
+**Consumes API**: GET /api/tasks (TG-TASKFLOW-API-001)  
 
-**Given**: User has 150 tasks
-**When**: Load dashboard
+**Given**: User has 150 tasks  
+**When**: Load dashboard  
 **Then**: 
-- Initial 20 tasks loaded
-- Scroll triggers pagination (lazy load)
-- Smooth scrolling performance
+- Initial 20 tasks loaded  
+- Scroll triggers pagination (lazy load)  
+- Smooth scrolling performance  
 **Verify**: 
-- Page load time <2s for initial render
-- No UI freezing during scroll
-- Virtual scrolling active (if implemented)
+- Page load time <2s for initial render  
+- No UI freezing during scroll  
+- Virtual scrolling active (if implemented)  
 
 ---
 
 #### TEST-EDGE-004: Long Task Title Overflow
-**Component**: Task List Component, Task Card
-**Page**: /dashboard
-**Feature Tags**: ui-layout, text-truncation, edge-case
-**Test Type**: UI Test
-**Priority**: P2
-**Prerequisites**: Task with very long title
-**Covers Bug**: BUG-UI-402
+**Component**: Task List Component, Task Card  
+**Page**: /dashboard  
+**Feature Tags**: ui-layout, text-truncation, edge-case  
+**Test Type**: UI Test  
+**Priority**: P2  
+**Prerequisites**: Task with very long title  
+**Covers Bug**: BUG-UI-402  
 
-**Given**: Task with 200-character title
-**When**: View task in dashboard list
+**Given**: Task with 200-character title  
+**When**: View task in dashboard list  
 **Then**: 
-- Title truncates with ellipsis (...)
-- Full title shown on hover tooltip
-- Card width consistent
+- Title truncates with ellipsis (...)  
+- Full title shown on hover tooltip  
+- Card width consistent  
 **Verify**: 
-- Text doesn't overflow card
-- Ellipsis appears correctly
+- Text doesn't overflow card  
+- Ellipsis appears correctly  
 
 ---
 
 ### 3.4 Integration Scenarios
 #### TEST-INT-001: Form Validation Matches API
-**Component**: Task Form Component, Validation Layer
-**Page**: /task/new
-**Feature Tags**: integration, validation-sync, api-contract
-**Test Type**: Integration Test
-**Priority**: P1
-**Prerequisites**: None
-**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)
+**Component**: Task Form Component, Validation Layer  
+**Page**: /task/new  
+**Feature Tags**: integration, validation-sync, api-contract  
+**Test Type**: Integration Test  
+**Priority**: P1  
+**Prerequisites**: None  
+**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)  
 
-**Given**: On task creation form
-**When**: Submit various invalid payloads
+**Given**: On task creation form  
+**When**: Submit various invalid payloads  
 **Then**: 
-- Client validation catches same errors as server
-- Error messages consistent with API
+- Client validation catches same errors as server  
+- Error messages consistent with API  
 **Verify**: 
-- Title required (both client & API)
-- Status enum values match
-- Date format validation aligned
+- Title required (both client & API)  
+- Status enum values match  
+- Date format validation aligned  
 
 ---
 
 #### TEST-INT-002: WebSocket Connection Lifecycle
-**Component**: WebSocket Client
-**Page**: /dashboard
-**Feature Tags**: integration, websocket, connection-management
-**Test Type**: Integration Test
-**Priority**: P2
-**Prerequisites**: WebSocket server configured
-**Covers Risk**: RISK-004
+**Component**: WebSocket Client  
+**Page**: /dashboard  
+**Feature Tags**: integration, websocket, connection-management  
+**Test Type**: Integration Test  
+**Priority**: P2  
+**Prerequisites**: WebSocket server configured  
+**Covers Risk**: RISK-004  
 
-**Given**: Dashboard page loaded
-**When**: Network connection drops and restores
+**Given**: Dashboard page loaded  
+**When**: Network connection drops and restores  
 **Then**: 
-- WebSocket reconnects automatically
-- Missed updates fetched on reconnect
-- User notified of connection status
+- WebSocket reconnects automatically  
+- Missed updates fetched on reconnect  
+- User notified of connection status  
 **Verify**: 
-- Connection status indicator accurate
-- Exponential backoff on reconnect
-- No duplicate event subscriptions
+- Connection status indicator accurate  
+- Exponential backoff on reconnect  
+- No duplicate event subscriptions  
 
 ---
 
 #### TEST-INT-003: Browser Back Button Navigation
-**Component**: React Router, Navigation State
-**Page**: Multiple pages
-**Feature Tags**: navigation, browser-history, state-management
-**Test Type**: Integration Test
-**Priority**: P2
-**Prerequisites**: Multi-page navigation occurred
+**Component**: React Router, Navigation State  
+**Page**: Multiple pages  
+**Feature Tags**: navigation, browser-history, state-management  
+**Test Type**: Integration Test  
+**Priority**: P2  
+**Prerequisites**: Multi-page navigation occurred  
 
-**Given**: User navigated: Dashboard → Task Detail → Edit Task
-**When**: Press browser back button twice
+**Given**: User navigated: Dashboard → Task Detail → Edit Task  
+**When**: Press browser back button twice  
 **Then**: 
-- Returns to Dashboard correctly
-- State preserved (scroll position, filters)
-- No duplicate API calls
+- Returns to Dashboard correctly  
+- State preserved (scroll position, filters)  
+- No duplicate API calls  
 **Verify**: 
-- History state managed correctly
-- No broken navigation
+- History state managed correctly  
+- No broken navigation  
 
 ---
 
 ### 3.5 Regression Tests
 #### TEST-REG-001: Task List Refreshes After Delete
-**Component**: Task List Component
-**Page**: /dashboard
-**Feature Tags**: regression, ui-refresh, state-management
-**Test Type**: Regression Test
-**Priority**: P1
-**Prerequisites**: Task exists in list
-**Consumes API**: DELETE /api/tasks/{id} (TG-TASKFLOW-API-001)
-**Previous Bug**: BUG-UI-301
+**Component**: Task List Component  
+**Page**: /dashboard  
+**Feature Tags**: regression, ui-refresh, state-management  
+**Test Type**: Regression Test  
+**Priority**: P1  
+**Prerequisites**: Task exists in list  
+**Consumes API**: DELETE /api/tasks/{id} (TG-TASKFLOW-API-001)  
+**Previous Bug**: BUG-UI-301  
 
-**Context**: Previously list didn't update after deletion
-**Given**: Task visible in list
-**When**: Delete task successfully
-**Then**: Task immediately removed from list UI
+**Context**: Previously list didn't update after deletion  
+**Given**: Task visible in list  
+**When**: Delete task successfully  
+**Then**: Task immediately removed from list UI  
 
 ---
 
