@@ -1,464 +1,198 @@
-# Web Dashboard Task Management Test Guideline
-ID: TG-TASKFLOW-WEB-001
-Version: 1.1
-Feature: TaskFlow Web Dashboard UI
-Type: E2E
-Last Updated: 2025-11-05
-Owner: QA Team
+# Test Notes Draft
+Generated: 2025-11-07 09:35:50
+Status: Pending
 
-## 1. Feature Context
-### What We're Testing
-Web-based dashboard for managing tasks in TaskFlow project management system. Covers task creation, viewing, updating, and deletion through browser UI with real-time updates and responsive design.
+## Query
+Add Task Assignment Feature to TaskFlow API
 
-### Technical Scope
-- **Components**: React Dashboard, Task List Component, Task Form Component, WebSocket Client
-- **Pages**: 
-  - `/dashboard` - Main task list view
-  - `/task/new` - Create task form
-  - `/task/{id}` - Task detail view
-  - `/task/{id}/edit` - Edit task form
-- **Backend APIs**: Consumes TG-TASKFLOW-API-001 endpoints
-- **External Services**: WebSocket server for real-time updates
-- **Authentication**: Requires authentication from TG-TASKFLOW-AUTH-001
+*As a* project manager\
+*I want to* assign tasks to specific team members\
+*So that* I can delegate work and track who is responsible for each task
 
-## 2. Risk Analysis
-### Critical Risks
-- **RISK-001**: XSS via unescaped task content → **Test Focus**: Verify HTML escaping in task titles/descriptions
-- **RISK-002**: State desync between UI and server → **Test Focus**: Test optimistic updates and rollback
-- **RISK-003**: Form validation bypassed → **Test Focus**: Client-side validation matches server rules
-- **RISK-004**: Memory leak from unclosed WebSocket → **Test Focus**: Test connection cleanup on navigation
+h3. Acceptance Criteria
 
-### Known Issues & Bugs
-- **BUG-UI-301**: Task list doesn't refresh after delete → **Verify**: List updates immediately after deletion
-- **BUG-UI-402**: Long task titles overflow card boundaries → **Verify**: Text truncates with ellipsis
+# *Task Assignment*
+#* Users can assign a task to one user from their organization
+#* Only authenticated users can assign tasks
+#* Cannot assign tasks to users outside organization
+#* Can reassign tasks to different users
+#* Can unassign tasks (set to null)
+# *API Changes*
+#* {{POST /api/tasks}} accepts optional {{assigned_to}} field (user_id)
+#* {{PUT /api/tasks/{id}}} can update {{assigned_to}} field
+#* {{GET /api/tasks}} can filter by {{assigned_to=me}} or {{assigned_to={user_id}}}
+#* {{GET /api/tasks/{id}}} includes {{assigned_to}} user info in response
+# *Validation Rules*
+#* {{assigned_to}} must be valid user ID
+#* Assigned user must exist in same organization
+#* Cannot assign deleted/inactive users
+#* Assignment changes logged in audit trail
+# *Authorization*
+#* Only task owner or assigned user can view task details
+#* Only task owner or admin can change assignment
+#* Regular users cannot assign tasks to others without permission
+# *Notifications* (future scope)
+#* User notified when task assigned to them
+#* User notified when task reassigned away from them
 
-## 3. Test Scenarios
+h3. Technical Details
 
-### 3.1 Happy Path Scenarios
-#### TEST-HP-001: View Task Dashboard
-**Component**: React Dashboard, Task List Component
-**Page**: /dashboard
-**Feature Tags**: dashboard, task-list, ui-navigation
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Authenticated user with existing tasks
-**Consumes API**: GET /api/tasks (TG-TASKFLOW-API-001)
+*Database Changes:*
 
-**Given**: User logged in and has 5 tasks
-**When**: Navigate to /dashboard
-**Then**: 
-- All 5 tasks displayed in list
-- Tasks sorted by creation date (newest first)
-- Each task shows title, status, priority
-**Verify**: 
-- Loading spinner shows while fetching
-- Empty state not shown
-- Task cards clickable
+* Add {{assigned_to}} column to {{tasks}} table (nullable, FK to [users.id|http://users.id])
+* Add {{assigned_at}} timestamp column
+* Add index on {{assigned_to}} for filtering performance
 
----
+*API Endpoints Modified:*
 
-#### TEST-HP-002: Create New Task via Form
-**Component**: Task Form Component
-**Page**: /task/new
-**Feature Tags**: task-creation, form-submission, ui-crud
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Authenticated user
-**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)
+* {{POST /api/tasks}} - accept assigned_to
+* {{PUT /api/tasks/{id}}} - allow updating assigned_to
+* {{GET /api/tasks}} - support assigned_to filters
+* {{GET /api/tasks/{id}}} - include assignee details
 
-**Given**: User on /task/new page
-**When**: Fill form with:
-- Title: "Design database schema"
-- Description: "Create ERD for new features"
-- Status: "TODO"
-- Priority: "HIGH"
-- Click "Create Task" button
-**Then**: 
-- Task created successfully
-- Redirected to /dashboard
-- New task visible in list
-- Success notification shown
-**Verify**: 
-- Form fields cleared after submit
-- API called with correct payload
-- Task appears at top of list
+*Dependencies:*
 
----
+* Requires user data from Auth Service (TG-TASKFLOW-AUTH-001)
+* Affects Web Dashboard task forms (TG-TASKFLOW-WEB-001)
+* Uses existing authorization middleware
 
-#### TEST-HP-003: View Task Details
-**Component**: Task Detail Component
-**Page**: /task/{id}
-**Feature Tags**: task-detail, ui-navigation
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task exists in database
-**Consumes API**: GET /api/tasks/{id} (TG-TASKFLOW-API-001)
+*Security Concerns:*
 
-**Given**: Task with ID "task123" exists
-**When**: Click on task card in dashboard
-**Then**: 
-- Navigated to /task/task123
-- All task details displayed
-- Action buttons visible (Edit, Delete)
-**Verify**: 
-- Title, description, status, priority, due date all shown
-- Created/updated timestamps formatted correctly
-- Back button returns to dashboard
+* Must prevent assigning tasks to users in other organizations (data leakage)
+* Authorization checks on assignment changes
+* Cannot bypass access control by assigning to yourself
 
----
+## Scenarios to test for new/changed functionality
+- **Assign Task to User within Organization**
+  - **Given**: Authenticated user with valid JWT token.
+  - **When**: Perform `POST /api/tasks` with payload including valid `assigned_to` user ID from the same organization.
+  - **Then**: 
+    - Returns 201 Created.
+    - Assigned user ID included in the task response.
+    - Check task is correctly persisted in the database with the `assigned_to` field populated.
 
-#### TEST-HP-004: Edit Task Details
-**Component**: Task Form Component
-**Page**: /task/{id}/edit
-**Feature Tags**: task-update, form-submission, optimistic-ui
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task exists, user has edit permission
-**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
+- **Reassign Task to Different User**
+  - **Given**: Task exists with an assigned user.
+  - **When**: Perform `PUT /api/tasks/{id}` with a different valid `assigned_to` user ID from the same organization.
+  - **Then**: 
+    - Returns 200 OK.
+    - The task's `assigned_to` field is updated in the response and database.
+    - Confirm that assignment change is logged in the audit trail.
 
-**Given**: On task detail page for "task123"
-**When**: Click "Edit" → Update status to "IN_PROGRESS" → Click "Save"
-**Then**: 
-- Task updated successfully
-- Returned to detail view
-- Status badge shows "IN_PROGRESS"
-**Verify**: 
-- Optimistic UI update (immediate feedback)
-- API call completes successfully
-- Other fields unchanged
+- **Unassign Task**
+  - **Given**: Task is assigned to a user.
+  - **When**: Perform `PUT /api/tasks/{id}` and set `assigned_to` to null.
+  - **Then**: 
+    - Returns 200 OK.
+    - The `assigned_to` field in the task details is null.
+    - Ensure audit trail logs the unassignment.
 
----
+- **Authorization Check for Assignment**
+  - **Given**: User B (not the owner) attempts to assign a task owned by User A.
+  - **When**: Perform `PUT /api/tasks/{id}` to change the `assigned_to` user.
+  - **Then**: 
+    - Returns 403 Forbidden.
+    - Confirm no task data returned, ensuring proper enforcement of authorization rules.
 
-#### TEST-HP-005: Delete Task
-**Component**: Task Detail Component, Confirmation Modal
-**Page**: /task/{id}
-**Feature Tags**: task-deletion, ui-crud, modal-interaction
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task exists, user has delete permission
-**Consumes API**: DELETE /api/tasks/{id} (TG-TASKFLOW-API-001)
-**Covers Risk**: RISK-002
+- **Filter Tasks by Assigned User**
+  - **Given**: Multiple tasks with different assigned users exist.
+  - **When**: Perform `GET /api/tasks?assigned_to={user_id}` for a specific user.
+  - **Then**: 
+    - Returns 200 OK.
+    - Only tasks assigned to the specified user are returned in the response.
 
-**Given**: On task detail page for "task456"
-**When**: Click "Delete" → Confirm in modal
-**Then**: 
-- Task deleted
-- Redirected to dashboard
-- Task removed from list
-**Verify**: 
-- Confirmation modal shows warning
-- Cancel button aborts deletion
-- Success message displayed
+- **Validate User Assignment** 
+  - **Given**: Authenticated user.
+  - **When**: Perform `POST /api/tasks` with an invalid `assigned_to` user ID (either non-existent or a user from another organization).
+  - **Then**: 
+    - Returns 400 Bad Request.
+    - Ensure the error message appropriately describes the validation failure (e.g., "assigned_to must be a valid user from the same organization").
 
----
+- **Task Details Include Assigned User Info**
+  - **Given**: Task exists with an assigned user.
+  - **When**: Perform `GET /api/tasks/{id}`.
+  - **Then**: 
+    - Returns 200 OK.
+    - Response body includes the `assigned_to` user info as expected.
 
-#### TEST-HP-006: Real-Time Task Update
-**Component**: WebSocket Client, Task List Component
-**Page**: /dashboard
-**Feature Tags**: real-time, websocket, live-updates
-**Test Type**: Happy Path
-**Priority**: P2
-**Prerequisites**: WebSocket connection active, multiple users
-**Affects**: Real-time collaboration experience
+## Things to consider
+### Testing Considerations for Task Assignment Feature
 
-**Given**: Dashboard open, WebSocket connected
-**When**: Another user updates task status
-**Then**: 
-- Task status updates in real-time without refresh
-- Update animation plays
-**Verify**: 
-- WebSocket message received
-- UI updates within 500ms
-- No page flicker
+- **Edge Cases and Boundary Conditions:**
+  - Test assigning a task to a user with the maximum allowed user ID length.
+  - Verify behavior when assigning tasks with a `null` value for `assigned_to`.
+  - Check system response when attempting to assign a task to users with invalid or malformed user IDs.
+  - Assess performance with a high number of tasks being assigned/reassigned in quick succession (stress test).
 
----
+- **Data Validation Requirements:**
+  - Ensure that the `assigned_to` field accepts only valid user IDs (existing and active users within the organization).
+  - Validate that attempting to assign a task to a user outside the authenticated user's organization returns an appropriate error message.
+  - Verify that task assignment is prevented for deleted or inactive users, and an error is returned.
+  - Validate the presence of an audit trail entry when tasks are assigned, reassigned, or unassigned, checking for correct logging of user actions.
 
-### 3.2 Error Handling Scenarios
-#### TEST-ERR-001: Create Task with Empty Title
-**Component**: Task Form Component, Client Validation
-**Page**: /task/new
-**Feature Tags**: validation, error-handling, form-validation
-**Test Type**: Negative Test
-**Priority**: P1
-**Prerequisites**: None
-**Covers Risk**: RISK-003
+- **Error Handling Scenarios:**
+  - Verify system behavior when an unauthenticated user attempts to assign a task (should return 401 Unauthorized).
+  - Check for proper error messages when trying to reassign a task without permission (access control enforcement).
+  - Test the response when trying to assign tasks concurrently in a multi-user environment to ensure there are no race conditions or data integrity issues (conflict scenarios).
 
-**Given**: On task creation form
-**When**: Leave title empty → Click "Create Task"
-**Then**: 
-- Form submission blocked
-- Error message under title field: "Title is required"
-- Submit button disabled until valid
-**Verify**: 
-- No API call made
-- Form remains on page
-- Other fields retain values
+- **Performance Considerations:**
+  - Measure the API response times for task assignment operations to ensure they meet specified performance metrics.
+  - Evaluate the performance implications of filtering tasks by the `assigned_to` field with a large dataset to ensure that the added index on `assigned_to` improves query performance.
 
----
+- **Security Implications:**
+  - Test for data leakage by attempting to assign tasks to users without appropriate permissions and ensure access control is enforced.
+  - Verify that sensitive user information is not exposed through task details accessible via the GET endpoints.
+  - Conduct SQL injection tests on the `assigned_to` field during task assignment API calls to ensure input sanitization is effective.
 
-#### TEST-ERR-002: Network Error During Create
-**Component**: Task Form Component, Error Handling
-**Page**: /task/new
-**Feature Tags**: error-handling, network-error, retry-logic
-**Test Type**: Negative Test
-**Priority**: P2
-**Prerequisites**: Simulated network failure
-**Covers Risk**: RISK-002
+- **Integration and Dependency Concerns:**
+  - Ensure integration with the Auth Service is functioning correctly; test that authenticated user IDs correctly populate the assignment options.
+  - Confirm that changes in task assignment reflect appropriately in the Web Dashboard in real time, including verification of the UI update mechanisms.
+  - Test the impact of the API changes on related components in the Web Dashboard, ensuring no regressions occur due to the addition of the task assignment functionality.
 
-**Given**: On task creation form, network offline
-**When**: Fill valid form → Click "Create Task"
-**Then**: 
-- Error notification: "Unable to create task. Check your connection."
-- Form remains populated
-- Retry button available
-**Verify**: 
-- User data not lost
-- Can retry when connection restored
-- Error logged to console
+By addressing these considerations, testing can comprehensively cover functional, non-functional, and security aspects of the new Task Assignment feature implemented in the TaskFlow API.
+
+## Regression areas that could be affected
+### Regression Areas for Task Assignment Feature in TaskFlow API
+
+- **Task Creation Flow:**  
+  - **POST /api/tasks**: Verify task creation with and without the `assigned_to` field. Ensure that the creation process completes without errors and that the task can be viewed with the correct assignment in subsequent GET requests.
+
+- **Task Update Flow:**  
+  - **PUT /api/tasks/{id}**: Ensure task updates still function correctly. Test updates to both the `assigned_to` field and any other fields (like `status`, `priority`, etc.), confirming that only the intended fields change and proper auditing occurs.
+
+- **Task Retrieval and Filtering:**  
+  - **GET /api/tasks**: Validate the `assigned_to` filtering feature works without issues. Test retrieval of tasks assigned to specific users or for the current user (`assigned_to=me`) remains accurate.
+  - **GET /api/tasks/{id}**: Check that task details correctly include the `assigned_to` field information, and ensure user permissions are respected.
+
+- **Concurrent Updates:**  
+  - **Race Conditions**: Test concurrency scenarios where two users may attempt to update the same task's assignment. Validate the response for handling conflicts properly (should return 409 Conflict).
+
+- **Authorization Paths:**  
+  - Ensure that users without permission cannot assign tasks to others. Validate the behavior of the system when a user tries to assign tasks improperly (e.g., unauthorized users trying to use the `PUT` endpoint to change assignments).
+
+- **Error Handling Scenarios:**
+  - Test error responses when attempting to assign tasks with invalid `user_id`, to users outside the organization, or to inactive/deleted users (related to the validation rules specified).
+
+- **Notification System (Future Scope):**  
+  - While not implemented, verify placeholders or indications that notifications should happen upon assignment and reassignment events, ensuring this integration is prepared for future development.
+
+- **Integration with Web Dashboard:**
+  - **TG-TASKFLOW-WEB-001** relates to the visual representation of tasks, so confirm that task assignment visibility (in the web UI) correctly reflects backend changes, especially in task lists and detail views.
+
+- **Deleting Tasks:**  
+  - Verify that task deletion (`DELETE /api/tasks/{id}`) functionality still works. Confirm that task removal from lists updates immediately after deletion in the web UI to reflect no erroneous data remaining.
+
+- **Empty State Handling:**  
+  - Ensure that the system handles situations where no tasks exist due to unassignment correctly and that task assignments do not disrupt the expected empty state UI behavior.
+
+- **Performance and Security Checks:**  
+  - Validate that new changes do not introduce performance degradation or security flaws related to task assignment, particularly around data leakage or unauthorized data access.
+
+This list encompasses areas that share functionality or intersect with the changes from adding the task assignment feature, ensuring comprehensive regression testing coverage.
+
+## Citations
+[TG-TASKFLOW-API-001#technical-scope], [TG-TASKFLOW-API-001#31-happy-path-scenarios], [TG-TASKFLOW-API-001#32-error-handling-scenarios], [TG-TASKFLOW-API-001#what-were-testing], [TG-TASKFLOW-API-001#33-edge-cases], [TG-TASKFLOW-WEB-001#31-happy-path-scenarios], [TG-TASKFLOW-WEB-001#data-requirements], [TG-TASKFLOW-API-001#34-integration-scenarios], [TG-TASKFLOW-AUTH-001#technical-scope], [TG-TASKFLOW-WEB-001#34-integration-scenarios], [TG-TASKFLOW-AUTH-001#protects-these-services], [TG-TASKFLOW-WEB-001#35-regression-tests]
 
 ---
-
-#### TEST-ERR-003: Task Not Found
-**Component**: Task Detail Component, Error Page
-**Page**: /task/{id}
-**Feature Tags**: error-handling, 404-error
-**Test Type**: Negative Test
-**Priority**: P2
-**Prerequisites**: Task ID does not exist
-**Consumes API**: GET /api/tasks/{id} (TG-TASKFLOW-API-001)
-
-**Given**: Task ID "nonexistent" does not exist
-**When**: Navigate to /task/nonexistent
-**Then**: 
-- 404 error page displayed
-- Message: "Task not found"
-- Link to return to dashboard
-**Verify**: 
-- No JavaScript errors
-- Page renders correctly
-
----
-
-#### TEST-ERR-004: XSS Attempt in Task Title
-**Component**: Task Form Component, Task Display
-**Page**: /task/new, /dashboard
-**Feature Tags**: security, xss-prevention, input-sanitization
-**Test Type**: Security Test
-**Priority**: P0
-**Prerequisites**: None
-**Covers Risk**: RISK-001
-
-**Given**: On task creation form
-**When**: Enter title with script tag: `<script>alert('XSS')</script>`
-**Then**: 
-- Task created (title accepted)
-- When viewed, script NOT executed
-- Script tag shown as plain text
-**Verify**: 
-- HTML properly escaped in display
-- No alert popup
-- DevTools shows escaped HTML
-
----
-
-### 3.3 Edge Cases
-#### TEST-EDGE-001: Very Long Task Description
-**Component**: Task Form Component
-**Page**: /task/new
-**Feature Tags**: edge-case, text-input, ui-layout
-**Test Type**: Boundary Test
-**Priority**: P3
-**Prerequisites**: None
-
-**Given**: On task creation form
-**When**: Enter 5000-character description
-**Then**: 
-- Form accepts input
-- Textarea expands appropriately
-- Full description saved
-**Verify**: 
-- No UI layout breaking
-- Scroll appears in textarea
-- Character count shown (if applicable)
-
----
-
-#### TEST-EDGE-002: Rapid Task Status Changes
-**Component**: Task Detail Component, Optimistic UI
-**Page**: /task/{id}/edit
-**Feature Tags**: edge-case, concurrency, optimistic-ui
-**Test Type**: Stress Test
-**Priority**: P2
-**Prerequisites**: Task exists
-**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
-**Covers Risk**: RISK-002
-
-**Given**: On task detail page
-**When**: Change status 5 times rapidly (toggle)
-**Then**: 
-- All changes queued and processed
-- Final state correct
-- No race conditions
-**Verify**: 
-- Optimistic UI handles rapid changes
-- Server state matches final UI state
-
----
-
-#### TEST-EDGE-003: Task List with 100+ Tasks
-**Component**: Task List Component, Pagination
-**Page**: /dashboard
-**Feature Tags**: performance, pagination, virtual-scrolling
-**Test Type**: Performance Test
-**Priority**: P2
-**Prerequisites**: User with 150+ tasks
-**Consumes API**: GET /api/tasks (TG-TASKFLOW-API-001)
-
-**Given**: User has 150 tasks
-**When**: Load dashboard
-**Then**: 
-- Initial 20 tasks loaded
-- Scroll triggers pagination (lazy load)
-- Smooth scrolling performance
-**Verify**: 
-- Page load time <2s for initial render
-- No UI freezing during scroll
-- Virtual scrolling active (if implemented)
-
----
-
-#### TEST-EDGE-004: Long Task Title Overflow
-**Component**: Task List Component, Task Card
-**Page**: /dashboard
-**Feature Tags**: ui-layout, text-truncation, edge-case
-**Test Type**: UI Test
-**Priority**: P2
-**Prerequisites**: Task with very long title
-**Covers Bug**: BUG-UI-402
-
-**Given**: Task with 200-character title
-**When**: View task in dashboard list
-**Then**: 
-- Title truncates with ellipsis (...)
-- Full title shown on hover tooltip
-- Card width consistent
-**Verify**: 
-- Text doesn't overflow card
-- Ellipsis appears correctly
-
----
-
-### 3.4 Integration Scenarios
-#### TEST-INT-001: Form Validation Matches API
-**Component**: Task Form Component, Validation Layer
-**Page**: /task/new
-**Feature Tags**: integration, validation-sync, api-contract
-**Test Type**: Integration Test
-**Priority**: P1
-**Prerequisites**: None
-**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)
-
-**Given**: On task creation form
-**When**: Submit various invalid payloads
-**Then**: 
-- Client validation catches same errors as server
-- Error messages consistent with API
-**Verify**: 
-- Title required (both client & API)
-- Status enum values match
-- Date format validation aligned
-
----
-
-#### TEST-INT-002: WebSocket Connection Lifecycle
-**Component**: WebSocket Client
-**Page**: /dashboard
-**Feature Tags**: integration, websocket, connection-management
-**Test Type**: Integration Test
-**Priority**: P2
-**Prerequisites**: WebSocket server configured
-**Covers Risk**: RISK-004
-
-**Given**: Dashboard page loaded
-**When**: Network connection drops and restores
-**Then**: 
-- WebSocket reconnects automatically
-- Missed updates fetched on reconnect
-- User notified of connection status
-**Verify**: 
-- Connection status indicator accurate
-- Exponential backoff on reconnect
-- No duplicate event subscriptions
-
----
-
-#### TEST-INT-003: Browser Back Button Navigation
-**Component**: React Router, Navigation State
-**Page**: Multiple pages
-**Feature Tags**: navigation, browser-history, state-management
-**Test Type**: Integration Test
-**Priority**: P2
-**Prerequisites**: Multi-page navigation occurred
-
-**Given**: User navigated: Dashboard → Task Detail → Edit Task
-**When**: Press browser back button twice
-**Then**: 
-- Returns to Dashboard correctly
-- State preserved (scroll position, filters)
-- No duplicate API calls
-**Verify**: 
-- History state managed correctly
-- No broken navigation
-
----
-
-### 3.5 Regression Tests
-#### TEST-REG-001: Task List Refreshes After Delete
-**Component**: Task List Component
-**Page**: /dashboard
-**Feature Tags**: regression, ui-refresh, state-management
-**Test Type**: Regression Test
-**Priority**: P1
-**Prerequisites**: Task exists in list
-**Consumes API**: DELETE /api/tasks/{id} (TG-TASKFLOW-API-001)
-**Previous Bug**: BUG-UI-301
-
-**Context**: Previously list didn't update after deletion
-**Given**: Task visible in list
-**When**: Delete task successfully
-**Then**: Task immediately removed from list UI
-
----
-
-## 4. Dependencies & Integration Points
-### External Dependencies
-- **Task API**: TG-TASKFLOW-API-001 (all CRUD endpoints)
-- **Auth Service**: TG-TASKFLOW-AUTH-001 (JWT token management)
-- **WebSocket Server**: wss://taskflow.example.com/ws for real-time updates
-
-### Browser Support
-- **Desktop**: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
-- **Mobile**: iOS Safari 14+, Chrome Mobile 90+
-- **Screen Sizes**: 320px (mobile) to 2560px (4K desktop)
-
-### Data Requirements
-- **Test Users**: User with existing tasks for list views
-- **Empty State**: User with zero tasks for empty state testing
-- **Test Tasks**: Various statuses, priorities, due dates for filtering
-
-## 5. Key Verification Points
-### Always Verify
-- [ ] All user input properly escaped (XSS prevention)
-- [ ] Form validation matches API validation
-- [ ] Loading states shown during async operations
-- [ ] Error messages user-friendly and actionable
-- [ ] Responsive design works on mobile/tablet/desktop
-- [ ] Keyboard navigation functional (accessibility)
-
-### Common Failure Points
-- Form validation bypassed by manipulating DOM
-- WebSocket reconnection not handling missed messages
-- Optimistic updates not rolling back on API failure
-- Memory leaks from event listeners not cleaned up
-- Stale data shown after navigation
-- Double-submit on button mashing
+*Generated by AI QA Assistant using gpt-4o-mini (temp: 0.1)*
+*Based on 12 retrieved document chunks*
