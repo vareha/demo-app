@@ -1,18 +1,9 @@
-**CRITICAL - RELEVANCE CHECK:**
-1. The ticket is about the "TaskFlow API" and specifically its task assignment feature.
-2. The document is about "Authentication & Session Management."
-3. They are NOT the same service/component.
-
-Since the ticket pertains to a different service than the one outlined in the current test guide, I will **not** modify, delete, or deprecate any existing test scenarios. I will only update the metadata.
-
----
-
 # Authentication & Session Management Test Guideline
 ID: TG-TASKFLOW-AUTH-001
 Version: 1.1
 Feature: User Authentication & Session Management
 Type: API + E2E
-Last Updated: 2025-11-10
+Last Updated: 2025-11-05
 Owner: QA Team
 
 ## 1. Feature Context
@@ -21,7 +12,7 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 ### Technical Scope
 - **Components**: Auth Service, Token Manager, Session Store, Auth Middleware
-- **APIs**:
+- **APIs**: 
   - `POST /api/auth/login` - User login with credentials
   - `POST /api/auth/refresh` - Refresh expired JWT token
   - `POST /api/auth/logout` - End user session
@@ -62,11 +53,11 @@ Authentication flow including user login, JWT token management, session lifecycl
   "password": "SecurePass123!"
 }
 ```
-**Then**:
+**Then**: 
 - Returns 200 OK
 - Response includes JWT access token and refresh token
 - Session created in database
-**Verify**:
+**Verify**: 
 - Access token is valid JWT format
 - Token expiry set to 15 minutes
 - Refresh token expiry set to 7 days
@@ -85,10 +76,10 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: Valid JWT token
 **When**: GET /api/auth/me with header `Authorization: Bearer <token>`
-**Then**:
+**Then**: 
 - Returns 200 OK
 - Response includes user profile (id, email, name)
-**Verify**:
+**Verify**: 
 - No password field in response
 - Token validated correctly
 - User data accurate
@@ -112,11 +103,11 @@ Authentication flow including user login, JWT token management, session lifecycl
   "refresh_token": "<valid_refresh_token>"
 }
 ```
-**Then**:
+**Then**: 
 - Returns 200 OK
 - New access token issued
 - Refresh token rotated (new one issued)
-**Verify**:
+**Verify**: 
 - New access token valid for 15 minutes
 - Old refresh token invalidated
 - Session updated with new tokens
@@ -135,11 +126,11 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: User logged in with valid token
 **When**: POST /api/auth/logout with token
-**Then**:
+**Then**: 
 - Returns 204 No Content
 - Token invalidated
 - Session deleted from database
-**Verify**:
+**Verify**: 
 - Token cannot be used for subsequent requests
 - Refresh token also invalidated
 - Session record marked as logged_out
@@ -159,10 +150,10 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: User exists but wrong password provided
 **When**: POST /api/auth/login with incorrect password
-**Then**:
+**Then**: 
 - Returns 401 Unauthorized
 - Error message: "Invalid email or password"
-**Verify**:
+**Verify**: 
 - Generic error (doesn't specify which field wrong)
 - Failed attempt logged
 - Rate limit counter incremented
@@ -182,10 +173,10 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: Email doesn't exist in system
 **When**: POST /api/auth/login with non-existent email
-**Then**:
+**Then**: 
 - Returns 401 Unauthorized
 - Error message: "Invalid email or password"
-**Verify**:
+**Verify**: 
 - Same error as wrong password (no user enumeration)
 - Response time similar to valid user attempt
 
@@ -202,10 +193,10 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: No authorization header provided
 **When**: GET /api/auth/me without token
-**Then**:
+**Then**: 
 - Returns 401 Unauthorized
 - Error message: "Authentication required"
-**Verify**:
+**Verify**: 
 - Clear error message
 - No resource data leaked
 
@@ -222,10 +213,10 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: JWT access token expired (>15 minutes old)
 **When**: GET /api/auth/me with expired token
-**Then**:
+**Then**: 
 - Returns 401 Unauthorized
 - Error message: "Token expired"
-**Verify**:
+**Verify**: 
 - Suggests using refresh token
 - Token expiry correctly validated
 
@@ -243,11 +234,11 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: Rate limit set to 5 failed attempts per 15 minutes
 **When**: POST /api/auth/login with wrong password 6 times
-**Then**:
+**Then**: 
 - First 5 attempts: 401 Unauthorized
 - 6th attempt: 429 Too Many Requests
 - Error: "Too many login attempts. Try again in X minutes"
-**Verify**:
+**Verify**: 
 - Rate limit per IP address
 - Lockout duration correct
 - Successful login resets counter
@@ -267,10 +258,10 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: User registration with weak password "12345"
 **When**: POST /api/auth/register (or update password)
-**Then**:
+**Then**: 
 - Returns 400 Bad Request
 - Error: "Password must be at least 8 characters with 1 uppercase, 1 lowercase, 1 number, 1 special character"
-**Verify**:
+**Verify**: 
 - Password complexity enforced
 - Clear requirements communicated
 
@@ -288,11 +279,11 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: Two devices refresh token simultaneously
 **When**: Both send refresh requests within 100ms
-**Then**:
+**Then**: 
 - First request succeeds (new tokens issued)
 - Second request fails gracefully (401 or 409)
 - User not logged out unexpectedly
-**Verify**:
+**Verify**: 
 - Race condition handled
 - User can re-authenticate if needed
 
@@ -305,14 +296,15 @@ Authentication flow including user login, JWT token management, session lifecycl
 **Test Type**: Boundary Test
 **Priority**: P2
 **Prerequisites**: Session idle for extended period
+**Affects**: Long-running sessions
 
 **Given**: User logged in, session idle for 6 days 23 hours
 **When**: Use refresh token just before 7-day expiry
-**Then**:
+**Then**: 
 - Refresh succeeds
 - New 7-day refresh token issued
 - Session extended
-**Verify**:
+**Verify**: 
 - Expiry calculated correctly
 - No sudden session termination
 
@@ -329,10 +321,10 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: Valid JWT token with modified payload
 **When**: GET /api/auth/me with tampered token
-**Then**:
+**Then**: 
 - Returns 401 Unauthorized
 - Error: "Invalid token signature"
-**Verify**:
+**Verify**: 
 - Signature validation works
 - Tampering detected
 - Security event logged
@@ -351,12 +343,12 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: User on web login page (/login)
 **When**: Enter credentials → Click "Login" button
-**Then**:
+**Then**: 
 - API login request succeeds
 - Tokens stored in browser (httpOnly cookie or localStorage)
 - Redirected to /dashboard
 - Subsequent API calls include auth token
-**Verify**:
+**Verify**: 
 - Token securely stored
 - Auth header automatically added
 - Dashboard loads user-specific data
@@ -374,12 +366,12 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: User actively using dashboard, token expires
 **When**: Next API call made with expired token
-**Then**:
+**Then**: 
 - Client detects 401 error
 - Automatically refreshes token
 - Original request retried with new token
 - User uninterrupted
-**Verify**:
+**Verify**: 
 - Refresh happens transparently
 - No data loss
 - Single refresh attempt (not infinite loop)
@@ -397,11 +389,11 @@ Authentication flow including user login, JWT token management, session lifecycl
 
 **Given**: User logged in with 3 browser tabs open
 **When**: Logout clicked in one tab
-**Then**:
+**Then**: 
 - All tabs detect logout
 - All tabs redirect to login page
 - Token invalidated globally
-**Verify**:
+**Verify**: 
 - Broadcast channel or storage event used
 - No tab retains access
 
@@ -447,7 +439,7 @@ Authentication flow including user login, JWT token management, session lifecycl
 - Response includes: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
 ### Data Requirements
-- **Test Users**:
+- **Test Users**: 
   - Active user: test@example.com / SecurePass123!
   - Locked user: locked@example.com (for rate limit testing)
   - Admin user: admin@example.com (for role-based testing)
@@ -471,13 +463,3 @@ Authentication flow including user login, JWT token management, session lifecycl
 - CORS misconfiguration exposing tokens
 - Tokens stored in localStorage (XSS risk)
 - Rate limiting bypassed via IP spoofing
-
----
-
-### Version History
-- **1.1** - Last updated on 2025-11-05
-- **1.2** - Metadata update only (ticket relates to different service)
-
----
-
-This version preserves the integrity of the original document while updating the last modified date and version number to reflect that no content changes were made to the test scenarios.
