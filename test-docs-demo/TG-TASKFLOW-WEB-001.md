@@ -1,9 +1,9 @@
 # Web Dashboard Task Management Test Guideline
 ID: TG-TASKFLOW-WEB-001
-Version: 1.2
+Version: 1.1
 Feature: TaskFlow Web Dashboard UI
 Type: E2E
-Last Updated: 2025-11-10
+Last Updated: 2025-11-05
 Owner: QA Team
 
 ## 1. Feature Context
@@ -12,7 +12,7 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 ### Technical Scope
 - **Components**: React Dashboard, Task List Component, Task Form Component, WebSocket Client
-- **Pages**:
+- **Pages**: 
   - `/dashboard` - Main task list view
   - `/task/new` - Create task form
   - `/task/{id}` - Task detail view
@@ -27,7 +27,6 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 - **RISK-002**: State desync between UI and server → **Test Focus**: Test optimistic updates and rollback
 - **RISK-003**: Form validation bypassed → **Test Focus**: Client-side validation matches server rules
 - **RISK-004**: Memory leak from unclosed WebSocket → **Test Focus**: Test connection cleanup on navigation
-- **RISK-005**: Unauthorized task assignment → **Test Focus**: Ensure only valid users can assign tasks within the same organization
 
 ### Known Issues & Bugs
 - **BUG-UI-301**: Task list doesn't refresh after delete → **Verify**: List updates immediately after deletion
@@ -47,11 +46,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: User logged in and has 5 tasks
 **When**: Navigate to /dashboard
-**Then**:
+**Then**: 
 - All 5 tasks displayed in list
 - Tasks sorted by creation date (newest first)
 - Each task shows title, status, priority
-**Verify**:
+**Verify**: 
 - Loading spinner shows while fetching
 - Empty state not shown
 - Task cards clickable
@@ -74,12 +73,12 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 - Status: "TODO"
 - Priority: "HIGH"
 - Click "Create Task" button
-**Then**:
+**Then**: 
 - Task created successfully
 - Redirected to /dashboard
 - New task visible in list
 - Success notification shown
-**Verify**:
+**Verify**: 
 - Form fields cleared after submit
 - API called with correct payload
 - Task appears at top of list
@@ -97,11 +96,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: Task with ID "task123" exists
 **When**: Click on task card in dashboard
-**Then**:
+**Then**: 
 - Navigated to /task/task123
 - All task details displayed
 - Action buttons visible (Edit, Delete)
-**Verify**:
+**Verify**: 
 - Title, description, status, priority, due date all shown
 - Created/updated timestamps formatted correctly
 - Back button returns to dashboard
@@ -119,11 +118,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task detail page for "task123"
 **When**: Click "Edit" → Update status to "IN_PROGRESS" → Click "Save"
-**Then**:
+**Then**: 
 - Task updated successfully
 - Returned to detail view
 - Status badge shows "IN_PROGRESS"
-**Verify**:
+**Verify**: 
 - Optimistic UI update (immediate feedback)
 - API call completes successfully
 - Other fields unchanged
@@ -142,11 +141,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task detail page for "task456"
 **When**: Click "Delete" → Confirm in modal
-**Then**:
+**Then**: 
 - Task deleted
 - Redirected to dashboard
 - Task removed from list
-**Verify**:
+**Verify**: 
 - Confirmation modal shows warning
 - Cancel button aborts deletion
 - Success message displayed
@@ -164,97 +163,13 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: Dashboard open, WebSocket connected
 **When**: Another user updates task status
-**Then**:
+**Then**: 
 - Task status updates in real-time without refresh
 - Update animation plays
-**Verify**:
+**Verify**: 
 - WebSocket message received
 - UI updates within 500ms
 - No page flicker
-
----
-
-#### TEST-HP-007: Assign Task to User within Organization
-**Component**: Task Form Component
-**Page**: /task/new
-**Feature Tags**: task-assignment, form-submission, ui-crud
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Authenticated user
-**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)
-
-**Given**: User on /task/new page
-**When**: Fill form with:
-- Title: "Design new feature"
-- Description: "Implement the new feature based on UX design"
-- Assigned to: valid user ID within organization
-- Click "Create Task" button
-**Then**:
-- Task created successfully with assigned user
-- Redirected to /dashboard
-- New task visible in list with assigned user displayed
-**Verify**:
-- Form fields cleared after submit
-- API called with correct payload including `assigned_to`
-- Task appears at top of list with the correct assignee
-
----
-
-#### TEST-HP-008: Reassign Task to Different User
-**Component**: Task Form Component
-**Page**: /task/{id}/edit
-**Feature Tags**: task-reassignment, form-submission
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task assigned to a user, user has edit permission
-**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
-
-**Given**: On task detail page for "task123" assigned to User A
-**When**: Click "Edit" → Change assigned to User B's valid user ID → Click "Save"
-**Then**:
-- Task reassigned successfully
-- Returned to detail view with updated assignee
-**Verify**:
-- API call completes successfully
-- Task shows updated assigned user
-
----
-
-#### TEST-HP-009: Unassign Task
-**Component**: Task Form Component
-**Page**: /task/{id}/edit
-**Feature Tags**: task-unassignment, form-submission
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Task assigned to a user, user has edit permission
-**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
-
-**Given**: On task detail page for "task123" assigned to User A
-**When**: Click "Edit" → Set assigned to null → Click "Save"
-**Then**:
-- Task unassigned successfully
-- Returned to detail view with `assigned_to` field as null
-**Verify**:
-- Task shows no assigned user
-- API call completes successfully
-
----
-
-#### TEST-HP-010: Fetch Tasks Filtered by Assigned User
-**Component**: Task List Component
-**Page**: /dashboard
-**Feature Tags**: task-filtering
-**Test Type**: Happy Path
-**Priority**: P1
-**Prerequisites**: Multiple tasks exist with various assigned users
-**Consumes API**: GET /api/tasks?assigned_to={user_id} (TG-TASKFLOW-API-001)
-
-**Given**: User wants to see tasks assigned to them
-**When**: Perform `GET /api/tasks?assigned_to={user_id}`
-**Then**:
-- API returns tasks only assigned to the specified user
-**Verify**:
-- Response matches expected counts and task data
 
 ---
 
@@ -270,11 +185,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task creation form
 **When**: Leave title empty → Click "Create Task"
-**Then**:
+**Then**: 
 - Form submission blocked
 - Error message under title field: "Title is required"
 - Submit button disabled until valid
-**Verify**:
+**Verify**: 
 - No API call made
 - Form remains on page
 - Other fields retain values
@@ -292,11 +207,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task creation form, network offline
 **When**: Fill valid form → Click "Create Task"
-**Then**:
+**Then**: 
 - Error notification: "Unable to create task. Check your connection."
 - Form remains populated
 - Retry button available
-**Verify**:
+**Verify**: 
 - User data not lost
 - Can retry when connection restored
 - Error logged to console
@@ -314,11 +229,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: Task ID "nonexistent" does not exist
 **When**: Navigate to /task/nonexistent
-**Then**:
+**Then**: 
 - 404 error page displayed
 - Message: "Task not found"
 - Link to return to dashboard
-**Verify**:
+**Verify**: 
 - No JavaScript errors
 - Page renders correctly
 
@@ -335,11 +250,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task creation form
 **When**: Enter title with script tag: `<script>alert('XSS')</script>`
-**Then**:
+**Then**: 
 - Task created (title accepted)
 - When viewed, script NOT executed
 - Script tag shown as plain text
-**Verify**:
+**Verify**: 
 - HTML properly escaped in display
 - No alert popup
 - DevTools shows escaped HTML
@@ -357,11 +272,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task creation form
 **When**: Enter 5000-character description
-**Then**:
+**Then**: 
 - Form accepts input
 - Textarea expands appropriately
 - Full description saved
-**Verify**:
+**Verify**: 
 - No UI layout breaking
 - Scroll appears in textarea
 - Character count shown (if applicable)
@@ -380,11 +295,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task detail page
 **When**: Change status 5 times rapidly (toggle)
-**Then**:
+**Then**: 
 - All changes queued and processed
 - Final state correct
 - No race conditions
-**Verify**:
+**Verify**: 
 - Optimistic UI handles rapid changes
 - Server state matches final UI state
 
@@ -401,11 +316,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: User has 150 tasks
 **When**: Load dashboard
-**Then**:
+**Then**: 
 - Initial 20 tasks loaded
 - Scroll triggers pagination (lazy load)
 - Smooth scrolling performance
-**Verify**:
+**Verify**: 
 - Page load time <2s for initial render
 - No UI freezing during scroll
 - Virtual scrolling active (if implemented)
@@ -423,11 +338,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: Task with 200-character title
 **When**: View task in dashboard list
-**Then**:
+**Then**: 
 - Title truncates with ellipsis (...)
 - Full title shown on hover tooltip
 - Card width consistent
-**Verify**:
+**Verify**: 
 - Text doesn't overflow card
 - Ellipsis appears correctly
 
@@ -445,10 +360,10 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: On task creation form
 **When**: Submit various invalid payloads
-**Then**:
+**Then**: 
 - Client validation catches same errors as server
 - Error messages consistent with API
-**Verify**:
+**Verify**: 
 - Title required (both client & API)
 - Status enum values match
 - Date format validation aligned
@@ -466,11 +381,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: Dashboard page loaded
 **When**: Network connection drops and restores
-**Then**:
+**Then**: 
 - WebSocket reconnects automatically
 - Missed updates fetched on reconnect
 - User notified of connection status
-**Verify**:
+**Verify**: 
 - Connection status indicator accurate
 - Exponential backoff on reconnect
 - No duplicate event subscriptions
@@ -487,11 +402,11 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 
 **Given**: User navigated: Dashboard → Task Detail → Edit Task
 **When**: Press browser back button twice
-**Then**:
+**Then**: 
 - Returns to Dashboard correctly
 - State preserved (scroll position, filters)
 - No duplicate API calls
-**Verify**:
+**Verify**: 
 - History state managed correctly
 - No broken navigation
 
@@ -547,9 +462,3 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 - Memory leaks from event listeners not cleaned up
 - Stale data shown after navigation
 - Double-submit on button mashing
-
----
-
-### Version History
-- **v1.1** - Initial version
-- **v1.2** - Added new test scenarios for Task Assignment feature and updated Risk Analysis.
