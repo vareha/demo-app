@@ -1,9 +1,11 @@
+Here's the updated Task API CRUD Operations Test Guideline, incorporating the new Task Assignment feature while preserving all original tests as per the instructions.
+
 # Task API CRUD Operations Test Guideline
 ID: TG-TASKFLOW-API-001
-Version: 1.1
+Version: 1.2
 Feature: RESTful Task Management API
 Type: API
-Last Updated: 2025-11-05
+Last Updated: 2025-11-11
 Owner: QA Team
 
 ## 1. Feature Context
@@ -12,7 +14,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 ### Technical Scope
 - **Components**: Task API Service, Task Repository, Validation Layer
-- **APIs**: 
+- **APIs**:
   - `POST /api/tasks` - Create task
   - `GET /api/tasks/{id}` - Get task by ID
   - `GET /api/tasks` - List tasks with filters
@@ -57,11 +59,11 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
   "due_date": "2025-12-01"
 }
 ```
-**Then**: 
+**Then**:
 - Returns 201 Created
 - Response includes task ID and all fields
 - Task persisted in database
-**Verify**: 
+**Verify**:
 - Returned task.id is UUID format
 - task.created_at is current timestamp
 - task.created_by matches authenticated user
@@ -79,7 +81,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Task exists with ID "123e4567-e89b-12d3-a456-426614174000"
 **When**: GET /api/tasks/123e4567-e89b-12d3-a456-426614174000
-**Then**: 
+**Then**:
 - Returns 200 OK
 - Response body contains complete task data
 **Verify**:
@@ -99,7 +101,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: 25 tasks exist in system
 **When**: GET /api/tasks?page=1&limit=10
-**Then**: 
+**Then**:
 - Returns 200 OK
 - Response contains exactly 10 tasks
 - Includes pagination metadata
@@ -122,10 +124,10 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Tasks with status TODO, IN_PROGRESS, DONE exist
 **When**: GET /api/tasks?status=TODO
-**Then**: 
+**Then**:
 - Returns 200 OK
 - Only tasks with status=TODO returned
-**Verify**: 
+**Verify**:
 - All returned tasks have status "TODO"
 - Count matches expected TODO tasks
 
@@ -147,7 +149,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
   "status": "IN_PROGRESS"
 }
 ```
-**Then**: 
+**Then**:
 - Returns 200 OK
 - Task status updated in database
 - updated_at timestamp refreshed
@@ -170,13 +172,77 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Task with ID "xyz789" exists
 **When**: DELETE /api/tasks/xyz789
-**Then**: 
+**Then**:
 - Returns 204 No Content
 - Task marked as deleted (soft delete)
 **Verify**:
 - Task not visible in GET /api/tasks
 - Task still exists in database with deleted_at timestamp
 - Can be recovered if needed
+
+---
+
+#### TEST-HP-007: Assign Task to Valid User
+**Component**: Task API Service
+**Endpoint**: POST /api/tasks
+**Feature Tags**: task-assignment, validation, api-crud
+**Test Type**: Happy Path
+**Priority**: P1
+**Prerequisites**: Authenticated user with valid organization membership
+**Affects**: Web dashboard task form, task list views
+
+**Given**: Authenticated user with valid API token
+**When**: POST /api/tasks with valid payload:
+```json
+{
+  "title": "Implement task assignment feature",
+  "description": "Assign tasks to team members",
+  "status": "TODO",
+  "priority": "HIGH",
+  "due_date": "2025-12-01",
+  "assigned_to": "user_id_123"
+}
+```
+**Then**:
+- Returns 201 Created
+- Task persisted in database with assigned user
+**Verify**:
+- Task is correctly assigned to specified user
+- Assigned user exists in the organization
+
+---
+
+#### TEST-HP-008: Reassign Task
+**Component**: Task API Service
+**Endpoint**: PUT /api/tasks/{id}
+**Feature Tags**: task-reassignment, api-crud
+**Test Type**: Happy Path
+**Priority**: P1
+**Prerequisites**: Existing task assigned to a user
+**Affects**: Web dashboard task assignment functionality
+
+**Given**: Existing task assigned to User A
+**When**: Sending a PUT request to `/api/tasks/{id}` with a new valid `assigned_to` user ID
+**Then**:
+- Returns 200 OK
+- Confirm that the task is updated in the database with the new assignee.
+
+---
+
+#### TEST-HP-009: Unassign Task
+**Component**: Task API Service
+**Endpoint**: PUT /api/tasks/{id}
+**Feature Tags**: task-unassignment, api-crud
+**Test Type**: Happy Path
+**Priority**: P1
+**Prerequisites**: Task assigned to a user
+**Affects**: Web dashboard task assignment functionality
+
+**Given**: Task assigned to a user
+**When**: Sending a PUT request to `/api/tasks/{id}` with `assigned_to` set to null
+**Then**:
+- Returns 200 OK
+- Verify the task is successfully unassigned, returning a confirmation response.
 
 ---
 
@@ -199,10 +265,10 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
   "status": "TODO"
 }
 ```
-**Then**: 
+**Then**:
 - Returns 400 Bad Request
 - Error message: "title is required"
-**Verify**: 
+**Verify**:
 - No task created in database
 - Error response includes field name
 - No stack trace in response
@@ -220,10 +286,10 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: No task exists with ID "nonexistent-id"
 **When**: GET /api/tasks/nonexistent-id
-**Then**: 
+**Then**:
 - Returns 404 Not Found
 - Error message: "Task not found"
-**Verify**: 
+**Verify**:
 - No database errors logged
 - Response time <100ms
 
@@ -246,7 +312,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
   "status": "INVALID_STATUS"
 }
 ```
-**Then**: 
+**Then**:
 - Returns 400 Bad Request
 - Error message: "status must be one of: TODO, IN_PROGRESS, DONE"
 **Verify**:
@@ -267,7 +333,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Task belongs to User A, current user is User B
 **When**: GET /api/tasks/{userA_task_id} as User B
-**Then**: 
+**Then**:
 - Returns 403 Forbidden
 - Error message: "Access denied"
 **Verify**:
@@ -288,7 +354,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Malicious user attempts SQL injection
 **When**: GET /api/tasks?title=' OR '1'='1
-**Then**: 
+**Then**:
 - Returns 400 Bad Request OR returns empty results
 - No SQL error exposed
 **Verify**:
@@ -311,10 +377,10 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Title with 500 characters
 **When**: POST /api/tasks with 500-char title
-**Then**: 
+**Then**:
 - Returns 400 Bad Request
 - Error: "title must be 255 characters or less"
-**Verify**: 
+**Verify**:
 - Validation before database insertion
 - Character count accurate (not byte count)
 
@@ -331,10 +397,10 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Current date is 2025-11-05
 **When**: Create task with due_date "2030-01-01"
-**Then**: 
+**Then**:
 - Returns 201 Created
 - Task created successfully
-**Verify**: 
+**Verify**:
 - No date validation errors
 - Date stored correctly in UTC
 
@@ -352,7 +418,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Task with ID "concurrent-test"
 **When**: Two users update same task simultaneously
-**Then**: 
+**Then**:
 - First update succeeds (200 OK)
 - Second update returns 409 Conflict
 **Verify**:
@@ -373,10 +439,10 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: No tasks exist for current user
 **When**: GET /api/tasks
-**Then**: 
+**Then**:
 - Returns 200 OK
 - Empty array: `{"data": [], "total_count": 0}`
-**Verify**: 
+**Verify**:
 - No null or undefined response
 - Proper pagination metadata
 
@@ -394,7 +460,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Clean database state
 **When**: POST /api/tasks with valid data
-**Then**: 
+**Then**:
 - API returns 201 Created
 - Direct database query shows task exists
 **Verify**:
@@ -415,7 +481,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 **Given**: Event listener configured
 **When**: POST /api/tasks successfully creates task
-**Then**: 
+**Then**:
 - "task.created" event published to event bus
 - Event payload includes task ID and user ID
 **Verify**:
@@ -454,7 +520,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 - **Mobile App**: (future)
 
 ### API Contracts
-- **Request Headers**: 
+- **Request Headers**:
   - `Authorization: Bearer <token>` (required)
   - `Content-Type: application/json` (for POST/PUT)
 - **Response Format**: Consistent JSON structure
@@ -486,3 +552,7 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 - Soft delete not respected in queries
 - Concurrent update race conditions
 - Authorization bypass via parameter tampering
+
+---
+
+The document now includes the newly added tests for the task assignment feature (TEST-HP-007, TEST-HP-008, TEST-HP-009) while maintaining the integrity of all existing tests. The version has been updated to 1.2, and the last updated date reflects today's date.
