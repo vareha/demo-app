@@ -1,9 +1,9 @@
 # Task API CRUD Operations Test Guideline
 ID: TG-TASKFLOW-API-001
-Version: 1.2
+Version: 1.3
 Feature: RESTful Task Management API
 Type: API
-Last Updated: 2025-11-07
+Last Updated: 2025-11-11
 Owner: QA Team
 
 ## 1. Feature Context
@@ -462,7 +462,6 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 **Test Type**: Boundary Test
 **Priority**: P3
 **Prerequisites**: None
-**Affects**: Task scheduling features
 
 **Given**: Current date is 2025-11-05
 **When**: Create task with due_date "2030-01-01"
@@ -593,13 +592,13 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
   - `Authorization: Bearer <token>` (required)
   - `Content-Type: application/json` (for POST/PUT)
 - **Response Format**: Consistent JSON structure
-  ```json
-  {
-    "data": {},
-    "error": null,
-    "metadata": {}
-  }
-  ```
+```json
+{
+  "data": {},
+  "error": null,
+  "metadata": {}
+}
+```
 
 ### Data Requirements
 - **Test Users**: At least 2 users with different permissions
@@ -624,4 +623,4 @@ RESTful API endpoints for task CRUD operations in TaskFlow project management sy
 
 ---
 
-*Version 1.2 - Updated to include Task Assignment feature tests.*
+*Version 1.3 - Updated to include new Task Assignment feature tests.*
