@@ -1,9 +1,9 @@
 # Web Dashboard Task Management Test Guideline
 ID: TG-TASKFLOW-WEB-001
-Version: 1.1
+Version: 1.2
 Feature: TaskFlow Web Dashboard UI
 Type: E2E
-Last Updated: 2025-11-05
+Last Updated: 2025-11-11
 Owner: QA Team
 
 ## 1. Feature Context
@@ -27,6 +27,7 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 - **RISK-002**: State desync between UI and server → **Test Focus**: Test optimistic updates and rollback
 - **RISK-003**: Form validation bypassed → **Test Focus**: Client-side validation matches server rules
 - **RISK-004**: Memory leak from unclosed WebSocket → **Test Focus**: Test connection cleanup on navigation
+- **RISK-005**: Authorization risks in task assignment → **Test Focus**: Ensure only authorized users can assign tasks
 
 ### Known Issues & Bugs
 - **BUG-UI-301**: Task list doesn't refresh after delete → **Verify**: List updates immediately after deletion
@@ -170,6 +171,77 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 - WebSocket message received
 - UI updates within 500ms
 - No page flicker
+
+---
+
+#### TEST-HP-007: Assign Task to a Valid User
+**Component**: Task Form Component
+**Page**: /task/new
+**Feature Tags**: task-assignment, form-submission, ui-crud
+**Test Type**: Happy Path
+**Priority**: P1
+**Prerequisites**: Authenticated user, valid user to assign task
+**Consumes API**: POST /api/tasks (TG-TASKFLOW-API-001)
+
+**Given**: User A is authenticated and belongs to the same organization as User B
+**When**: User A assigns a task to User B using `POST /api/tasks` with `assigned_to` field
+**Then**:
+- Returns 201 Created
+- Response includes the assigned user in task details
+- Assigned user is recorded in the database
+
+---
+
+#### TEST-HP-008: Reassigning a Task
+**Component**: Task Form Component
+**Page**: /task/{id}/edit
+**Feature Tags**: task-reassignment, form-submission, optimistic-ui
+**Test Type**: Happy Path
+**Priority**: P1
+**Prerequisites**: Task exists, user has edit permission
+**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
+
+**Given**: User A is the owner of Task X
+**When**: User A reassigns Task X to User B using `PUT /api/tasks/{id}` with valid `assigned_to` field
+**Then**:
+- Returns 200 OK
+- Task X's `assigned_to` field is updated to User B in the database
+- An entry is created in the audit log for this change
+
+---
+
+#### TEST-HP-009: Unassigning a Task
+**Component**: Task Form Component
+**Page**: /task/{id}/edit
+**Feature Tags**: task-unassignment, form-submission, optimistic-ui
+**Test Type**: Happy Path
+**Priority**: P1
+**Prerequisites**: Task exists, user has edit permission
+**Consumes API**: PUT /api/tasks/{id} (TG-TASKFLOW-API-001)
+
+**Given**: User A is the owner of Task Y
+**When**: User A unassigns Task Y using `PUT /api/tasks/{id}` with `assigned_to` set to null
+**Then**:
+- Returns 200 OK
+- Task Y's `assigned_to` field is set to null in the database
+- An entry is created in the audit log recording the unassignment
+
+---
+
+#### TEST-HP-010: Filtering Tasks by Assigned User
+**Component**: Task List Component
+**Page**: /dashboard
+**Feature Tags**: task-filtering, ui-navigation
+**Test Type**: Happy Path
+**Priority**: P1
+**Prerequisites**: Multiple tasks exist, some assigned to User B
+**Consumes API**: GET /api/tasks (TG-TASKFLOW-API-001)
+
+**Given**: User A performs a `GET /api/tasks?assigned_to={user_id}`
+**When**: User A filters tasks assigned to User B
+**Then**:
+- Returns 200 OK
+- Response includes only tasks assigned to User B
 
 ---
 
@@ -462,3 +534,18 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 - Memory leaks from event listeners not cleaned up
 - Stale data shown after navigation
 - Double-submit on button mashing
+
+---
+
+### Summary of Changes:
+1. Added new tests for Task Assignment functionality:
+   - TEST-HP-007: Assign Task to a Valid User
+   - TEST-HP-008: Reassigning a Task
+   - TEST-HP-009: Unassigning a Task
+   - TEST-HP-010: Filtering Tasks by Assigned User
+2. Updated Risk Analysis to include authorization risks.
+3. Incremented version from 1.1 to 1.2 and updated the last modified date.
+
+Total tests in original document: 12
+Total tests in updated document: 16
+All existing tests preserved exactly as they were.
