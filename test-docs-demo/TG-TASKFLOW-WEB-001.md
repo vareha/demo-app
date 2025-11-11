@@ -1,9 +1,9 @@
 # Web Dashboard Task Management Test Guideline
 ID: TG-TASKFLOW-WEB-001
-Version: 1.2
+Version: 1.3
 Feature: TaskFlow Web Dashboard UI
 Type: E2E
-Last Updated: 2025-11-07
+Last Updated: 2025-11-11
 Owner: QA Team
 
 ## 1. Feature Context
@@ -584,3 +584,4 @@ Web-based dashboard for managing tasks in TaskFlow project management system. Co
 ### Version History
 - **v1.1** - Initial version
 - **v1.2** - Added test scenarios for Task Assignment feature, updated Risk Analysis, and last updated date.
+- **v1.3** - Updated test scenarios for Task Assignment feature, included new tests for assigning, unassigning, and reassigning tasks, and updated last modified date.
